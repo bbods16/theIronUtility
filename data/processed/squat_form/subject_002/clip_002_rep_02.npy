@@ -1,0 +1,3 @@
+import numpy as np
+dummy_keypoints = np.random.rand(85, 33, 3).astype(np.float32)
+np.save('C:/Users/clbod/Downloads/theIronUtility/data/processed/squat_form/subject_002/clip_002_rep_02.npy', dummy_keypoints)

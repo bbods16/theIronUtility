@@ -1,0 +1,8 @@
+stages:
+  prepare_data:
+    cmd: python scripts/prepare_data.py
+    deps:
+      - scripts/prepare_data.py
+      - data/raw/
+    outs:
+      - data/processed/squat_form/

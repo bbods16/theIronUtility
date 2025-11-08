@@ -1,0 +1,5 @@
+clip_id,subject_id,label
+clip_001_rep_01,subject_001,good_rep
+clip_001_rep_02,subject_001,knees_caving
+clip_002_rep_01,subject_002,not_deep_enough
+clip_002_rep_02,subject_002,good_rep

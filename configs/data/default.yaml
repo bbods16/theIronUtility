@@ -1,0 +1,36 @@
+# @package _global_
+
+data:
+  name: squat_form_dataset
+  dataset_dir: ${paths.data_dir}/processed/squat_form
+  batch_size: 32
+  num_workers: ${num_workers}
+  pin_memory: True
+
+  # Data splitting
+  train_split_ratio: 0.7
+  val_split_ratio: 0.15
+  test_split_ratio: 0.15
+  split_strategy: subject_stratified # Ensures all clips from a subject go into one split
+
+  # Augmentations for keypoint data (Form Model)
+  augmentations:
+    enabled: True
+    normalization:
+      enabled: True
+      method: hip_to_shoulder_distance # Scale and translation invariant
+    noise:
+      enabled: True
+      std_dev: 0.01 # Add Gaussian noise to keypoints
+    dropout:
+      enabled: True
+      rate: 0.05 # Randomly drop out single keypoints
+    masking:
+      enabled: True
+      max_mask_length: 5 # Mask sections of time in keypoint sequences
+
+  # Class weighting for imbalanced datasets
+  class_weights:
+    enabled: True
+    # Weights will be calculated dynamically based on dataset distribution
+    # Example: {good_rep: 1.0, knees_caving: 5.0, not_deep_enough: 3.0}

@@ -1,0 +1,45 @@
+# @package _global_
+
+model:
+  name: form_classifier
+  _target_: src.models.form_classifier.FormClassifier
+
+  # Pose Estimation Model (Pre-trained, not trained here)
+  pose_estimator:
+    name: mediapipe_blazepose # Placeholder, actual integration will be JS-side
+    num_keypoints: 33 # x, y, z, visibility
+
+  # Form Classification Model (TCN or RNN)
+  classifier:
+    type: TCN # or GRU, LSTM
+    input_dim: 99 # 33 keypoints * 3 (x, y, z)
+    num_classes: 5 # good_rep, knees_caving, not_deep_enough, butt_wink, spinal_flexion
+    hidden_dims: [128, 256]
+    kernel_size: 5 # For TCN
+    num_layers: 3
+    dropout: 0.2
+    bidirectional: False # For RNNs
+
+  # Loss function
+  loss:
+    _target_: torch.nn.CrossEntropyLoss
+    weight: null # Will be set dynamically if class_weights.enabled is True
+
+  # Optimizer
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.001
+    weight_decay: 0.01
+
+  # Learning Rate Scheduler
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    mode: min
+    factor: 0.5
+    patience: 5
+    verbose: True
+
+  # Mixed Precision Training
+  mixed_precision:
+    enabled: True
+    dtype: bf16 # or fp16

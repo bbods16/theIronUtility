@@ -1,0 +1,36 @@
+# @package _global_
+
+eval:
+  # Metrics to calculate during evaluation
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1_score
+    - confusion_matrix
+    - classification_report
+
+  # Confidence threshold for feedback (business requirement)
+  confidence_threshold: 0.90
+
+  # Sliced evaluation configuration
+  sliced_evaluation:
+    enabled: True
+    # Define slices for bias and robustness analysis
+    slices:
+      - name: skin_tone
+        attribute: subject_metadata.skin_tone # Example: 'Monk_1', 'Monk_2'
+      - name: body_type
+        attribute: subject_metadata.body_type # Example: 'athletic', 'average', 'heavy'
+      - name: lighting_condition
+        attribute: video_metadata.lighting # Example: 'bright', 'low', 'backlit'
+      - name: clothing_type
+        attribute: video_metadata.clothing # Example: 'tight', 'baggy'
+      - name: camera_angle
+        attribute: video_metadata.camera_angle # Example: 'front', 'side', '45_degree'
+
+  # Output report generation
+  report:
+    enabled: True
+    format: html # or markdown
+    output_path: ${paths.output_dir}/evaluation_report.${eval.report.format}

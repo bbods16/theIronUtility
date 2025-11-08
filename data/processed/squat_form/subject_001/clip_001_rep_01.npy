@@ -1,0 +1,5 @@
+import numpy as np
+# (num_frames, num_keypoints, 3)
+# num_keypoints = 33, 3 for x,y,z
+dummy_keypoints = np.random.rand(80, 33, 3).astype(np.float32)
+np.save('C:/Users/clbod/Downloads/theIronUtility/data/processed/squat_form/subject_001/clip_001_rep_01.npy', dummy_keypoints)

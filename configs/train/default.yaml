@@ -1,0 +1,28 @@
+# @package _global_
+
+train:
+  epochs: 50
+  early_stopping:
+    enabled: True
+    patience: 10
+    monitor: val_loss # Metric to monitor for early stopping
+    mode: min # 'min' for loss, 'max' for accuracy/metric
+  gradient_clipping:
+    enabled: True
+    clip_value: 1.0 # Clip gradients to this value
+  checkpointing:
+    save_best_only: True
+    monitor: val_loss
+    mode: min
+    filename: best_model.pt
+  resume_from_checkpoint: null # Path to a checkpoint to resume training from
+
+  # Distributed Data Parallel (DDP)
+  ddp:
+    enabled: False # Set to True for multi-GPU training
+    backend: nccl # or gloo
+
+  # Experiment Tracking (MLflow/W&B)
+  tracker:
+    log_model: True # Log the trained model as an artifact
+    log_every_n_steps: 50 # Log metrics every N training steps

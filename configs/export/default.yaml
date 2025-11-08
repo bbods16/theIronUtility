@@ -1,0 +1,16 @@
+# @package _global_
+
+export:
+  # Target format for the exported model
+  format: onnx # or tensorflowjs
+
+  # Output path for the exported model
+  output_path: ${paths.model_dir}/squat_form_model.${export.format}
+
+  # Input shape for tracing (e.g., for ONNX export)
+  input_shape: [1, 100, 99] # Batch_size, Sequence_length, Features (33 keypoints * 3 coords)
+
+  # Quantization-aware training / post-training quantization
+  quantization:
+    enabled: False
+    # type: dynamic # or static, float16
