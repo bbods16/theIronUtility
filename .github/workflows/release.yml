@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v1.0.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest tests/
+
+      - name: Prepare Data (if not already DVC pulled)
+        # This step ensures that the data is available for export.
+        # In a real scenario, DVC pull would be used, or data would be pre-existing.
+        run: python scripts/prepare_data.py
+
+      - name: Train a model (for release artifact)
+        # For a release, we might want to train a fresh model or use a specific checkpoint.
+        # For this example, we'll run a quick train. In production, this might be a longer run.
+        run: python scripts/train.py --config-dir configs --config-name config train.epochs=1
+
+      - name: Find latest checkpoint
+        id: find_checkpoint
+        run: |
+          CHECKPOINT_DIR="experiments/$(ls -t experiments | head -n 1)/checkpoints"
+          LATEST_CHECKPOINT=$(find "$CHECKPOINT_DIR" -name "*.ckpt" | head -n 1)
+          echo "latest_checkpoint=$LATEST_CHECKPOINT" >> $GITHUB_OUTPUT
+        
+      - name: Export Model to ONNX
+        run: python scripts/export.py --config-dir configs --config-name config checkpoint_path=${{ steps.find_checkpoint.outputs.latest_checkpoint }} export.format=onnx
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ github.workspace }}/models/*.onnx # Attach exported ONNX model
+            ${{ github.workspace }}/docs/MODEL_CARD.md
+            ${{ github.workspace }}/docs/DATA_CARD.md
+            ${{ github.workspace }}/docs/EVALUATION.md
+            ${{ github.workspace }}/docs/DEPENDENCIES.md
+            ${{ github.workspace }}/CHANGELOG.md
+          body_path: ${{ github.workspace }}/CHANGELOG.md # Use CHANGELOG as release body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

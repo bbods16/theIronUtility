@@ -62,7 +62,8 @@ def test_squat_form_dataset_init_and_len(mock_process, mock_np_load, mock_read_c
         split_subjects=['subject_A', 'subject_B', 'subject_C']
     )
     assert len(dataset) == 5
-    mock_read_csv.assert_called_once_with("/mock/data/labels.csv")
+    # Use os.path.join for platform-agnostic path comparison
+    mock_read_csv.assert_called_once_with(os.path.join("/mock/data", "labels.csv"))
 
 @patch('os.path.exists', return_value=True)
 @patch('pandas.read_csv')
@@ -87,7 +88,8 @@ def test_squat_form_dataset_getitem(mock_process, mock_np_load, mock_read_csv, m
 
     assert keypoints_tensor.shape == (100, 33 * 3) # 100 frames, 33 keypoints * 3 coords
     assert label_tensor.item() == mock_label_map["good_rep"]
-    mock_np_load.assert_called_with("/mock/data/subject_A/clip_A_rep_1.npy")
+    # Use os.path.join for platform-agnostic path comparison
+    mock_np_load.assert_called_with(os.path.join("/mock/data", "subject_A", "clip_A_rep_1.npy"))
     mock_process.assert_called_once()
 
 @patch('os.path.exists', return_value=True)
@@ -144,21 +146,34 @@ def mock_datamodule_config(mock_keypoint_processor_config):
             "val_split_ratio": 0.2,
             "test_split_ratio": 0.2,
             "split_strategy": "subject_stratified",
-            "augmentations": mock_keypoint_processor_config.augmentations,
+            # Corrected: Pass mock_keypoint_processor_config directly
+            "augmentations": mock_keypoint_processor_config,
             "class_weights": {"enabled": True}
         },
         "seed": 42
     })
 
+@pytest.fixture
+def mock_squat_form_dataset_instance():
+    """Returns a MagicMock configured to act like a SquatFormDataset instance."""
+    mock_ds = MagicMock(spec=SquatFormDataset)
+    mock_ds.class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0]) # Mock class weights
+    mock_ds.__len__.return_value = 5 # Example length
+    mock_ds.__getitem__.side_effect = lambda i: (torch.rand(100, 99), torch.tensor(0)) # Example item
+    return mock_ds
+
 # --- Tests for SquatFormDatamodule ---
 
 @patch('os.path.exists', return_value=True)
 @patch('pandas.read_csv')
-@patch('src.data.datasets.SquatFormDataset.__init__', return_value=None) # Mock dataset init
-@patch('src.data.datasets.SquatFormDataset._calculate_class_weights', return_value=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0]))
-def test_squat_form_datamodule_setup(mock_calc_weights, mock_dataset_init, mock_read_csv, mock_exists,
-                                     mock_labels_csv_content, mock_datamodule_config):
+@patch('src.data.datasets.SquatFormDataset') # Patch the class itself
+def test_squat_form_datamodule_setup(mock_squat_form_dataset_class, mock_read_csv, mock_exists,
+                                     mock_labels_csv_content, mock_datamodule_config,
+                                     mock_squat_form_dataset_instance):
     mock_read_csv.return_value = mock_labels_csv_content
+    # Configure the mock class to return our mock instance when called
+    mock_squat_form_dataset_class.return_value = mock_squat_form_dataset_instance
+
     datamodule = SquatFormDatamodule(mock_datamodule_config)
     datamodule.setup()
 
@@ -167,13 +182,11 @@ def test_squat_form_datamodule_setup(mock_calc_weights, mock_dataset_init, mock_
     assert datamodule.val_dataset is not None
     assert datamodule.test_dataset is not None
 
-    # Check that SquatFormDataset.__init__ was called for each split
-    # There are 3 unique subjects in mock_labels_csv_content: A, B, C
-    # With 0.6/0.2/0.2 split, it should be 1 train, 1 val, 1 test subject
-    # The exact subjects depend on shuffling, but the counts should be correct.
-    call_args_list = mock_dataset_init.call_args_list
+    # Check that SquatFormDataset was called for each split
+    call_args_list = mock_squat_form_dataset_class.call_args_list
     assert len(call_args_list) == 3
 
+    # Extract subjects from the calls (order might vary due to shuffling)
     train_subjects = call_args_list[0].kwargs['split_subjects']
     val_subjects = call_args_list[1].kwargs['split_subjects']
     test_subjects = call_args_list[2].kwargs['split_subjects']
@@ -188,39 +201,20 @@ def test_squat_form_datamodule_setup(mock_calc_weights, mock_dataset_init, mock_
     assert all_split_subjects == set(['subject_A', 'subject_B', 'subject_C'])
 
     assert datamodule.class_weights is not None
-    assert torch.equal(datamodule.class_weights, torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0]))
+    assert torch.equal(datamodule.class_weights, mock_squat_form_dataset_instance.class_weights)
 
 
 @patch('os.path.exists', return_value=True)
 @patch('pandas.read_csv')
-@patch('src.data.datasets.SquatFormDataset.__init__', return_value=None)
-@patch('src.data.datasets.SquatFormDataset._calculate_class_weights', return_value=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0]))
-def test_squat_form_datamodule_dataloaders(mock_calc_weights, mock_dataset_init, mock_read_csv, mock_exists,
-                                           mock_labels_csv_content, mock_datamodule_config):
+@patch('src.data.datasets.SquatFormDataset') # Patch the class itself
+def test_squat_form_datamodule_dataloaders(mock_squat_form_dataset_class, mock_read_csv, mock_exists,
+                                           mock_labels_csv_content, mock_datamodule_config,
+                                           mock_squat_form_dataset_instance):
     mock_read_csv.return_value = mock_labels_csv_content
+    mock_squat_form_dataset_class.return_value = mock_squat_form_dataset_instance
+
     datamodule = SquatFormDatamodule(mock_datamodule_config)
     datamodule.setup()
-
-    # Mock the datasets to return dummy data for dataloader iteration
-    mock_train_dataset = MagicMock(spec=SquatFormDataset)
-    mock_train_dataset.__len__.return_value = 5
-    mock_train_dataset.__getitem__.side_effect = lambda i: (torch.rand(100, 99), torch.tensor(0))
-    mock_train_dataset.class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0])
-
-    mock_val_dataset = MagicMock(spec=SquatFormDataset)
-    mock_val_dataset.__len__.return_value = 2
-    mock_val_dataset.__getitem__.side_effect = lambda i: (torch.rand(100, 99), torch.tensor(1))
-    mock_val_dataset.class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0])
-
-    mock_test_dataset = MagicMock(spec=SquatFormDataset)
-    mock_test_dataset.__len__.return_value = 2
-    mock_test_dataset.__getitem__.side_effect = lambda i: (torch.rand(100, 99), torch.tensor(2))
-    mock_test_dataset.class_weights = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0])
-
-
-    datamodule.train_dataset = mock_train_dataset
-    datamodule.val_dataset = mock_val_dataset
-    datamodule.test_dataset = mock_test_dataset
 
     train_loader = datamodule.train_dataloader()
     val_loader = datamodule.val_dataloader()
@@ -230,7 +224,7 @@ def test_squat_form_datamodule_dataloaders(mock_calc_weights, mock_dataset_init,
     assert isinstance(val_loader, torch.utils.data.DataLoader)
     assert isinstance(test_loader, torch.utils.data.DataLoader)
 
-    # Check batch size and data shape
+    # Check batch size and data shape by iterating one batch
     batch_x, batch_y = next(iter(train_loader))
     assert batch_x.shape == (mock_datamodule_config.data.batch_size, 100, 99)
     assert batch_y.shape == (mock_datamodule_config.data.batch_size,)

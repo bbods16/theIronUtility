@@ -1,0 +1,205 @@
+/* Import Monopoly-style font (Luckiest Guy) for headings */
+h1, .modal-title {
+  font-family: 'Luckiest Guy', cursive;
+}
+
+/* Emoji styling utility (slightly larger emoji icons) */
+.emoji {
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol",sans-serif;
+  font-size: 1.2em;
+}
+
+/* Start Button - Monopoly red with bold text */
+#startButton {
+  background-color: #d90429; /* bright red */
+  color: #fff;
+  border: none;
+}
+#startButton:hover {
+  background-color: #b70221;
+}
+#startButton .emoji {
+  font-size: 1.5em;
+  vertical-align: middle;
+}
+
+/* Media container (video/canvas area) styling */
+.media-container {
+  overflow: hidden;
+  border: 4px solid #000;
+}
+/* Canvas full coverage */
+#outputCanvas {
+  display: block;
+  /* Canvas background and overlay drawn content handled by JS; the border defines the frame */
+}
+
+/* Score HUD overlay */
+#scoreHUD {
+  font-size: 1.25rem;
+  border: 2px solid #000;
+  border-radius: 0.5rem;
+}
+
+/* Feedback Box styled like a Chance card */
+#feedbackBox {
+  min-width: 200px;
+  max-width: 80%;
+  font-size: 1.1rem;
+  border: 3px solid #000;
+  border-radius: 0.5rem;
+  display: none; /* hidden until used */
+}
+/* Chance card style (orange background, black text) */
+.chance-card {
+  background-color: #ffa500; /* orange (chance card) */
+  color: #000;
+  font-weight: bold;
+  font-family: 'Roboto', sans-serif;
+  position: relative;
+}
+.chance-card::before {
+  content: "❓ Chance";  /* add a Chance label with question mark */
+  font-style: italic;
+  position: absolute;
+  top: -1.5rem;
+  left: 0;
+}
+
+/* Mini Monopoly Board container */
+.mini-board {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 1 / 1;
+  background-color: #f8f9fa; /* light grey board background */
+  border: 4px solid #000;
+  position: relative;
+  border-radius: 0.5rem;
+}
+/* Corner labels on mini-board */
+.board-label {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #000;
+  border: 2px solid #000;
+  background-color: #fff;
+  text-align: center;
+  line-height: 60px;
+}
+/* Position each corner label */
+.board-label.go { bottom: 0; right: 0; background-color: #d90429; color: #fff; font-size: 1rem; }           /* GO - red */
+.board-label.jail { bottom: 0; left: 0; background-color: #ffd700; }        /* Jail - gold (just visiting) */
+.board-label.free-parking { top: 0; left: 0; background-color: #28a745; color: #fff; font-size: 0.9rem; }  /* Free Parking - green */
+.board-label.go-to-jail { top: 0; right: 0; background-color: #212529; color: #fff; font-size: 0.8rem; }   /* Go To Jail - black */
+
+/* Token piece styling */
+.token {
+  width: 24px;
+  height: 24px;
+  background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJod...') no-repeat center center;
+  background-size: contain;
+  /* The token uses an SVG or PNG icon (placeholder: could be a token like a top hat or dog).
+     You can replace the background-image with an actual Monopoly token image. */
+  transition: left 0.5s ease, top 0.5s ease;
+}
+/* If no image, as fallback we use an emoji as token content (gold coin) */
+.token::after {
+  content: "💰";
+  font-size: 1.2rem;
+  position: absolute;
+  top: -2px;
+  left: -2px;
+}
+
+/* Leaderboard modal property card style */
+.property-card {
+  background-color: #fff;
+  border: 4px solid #000;
+  border-radius: 0;
+  font-family: 'Roboto', sans-serif;
+}
+/* Leaderboard title bar (could be colored via JS for top rank) */
+.modal-header {
+  background-color: #87ceeb; /* light blue default (like Baltic Avenue) */
+  color: #000;
+  border-bottom: 3px solid #000;
+}
+/* Leaderboard list entries style */
+#leaderboardList li {
+  border: 2px solid #000;
+  padding: 8px;
+  margin-bottom: 8px;
+  background-color: #fff;
+  display: flex;
+  justify-content: space-between;
+}
+#leaderboardList li span.name {
+  font-weight: bold;
+}
+#leaderboardList li span.score {
+  font-style: italic;
+}
+
+/* Community Chest coaching modal style */
+.community-chest-card {
+  background-color: #ffeb3b; /* bright yellow (community chest card) */
+  border: 4px solid #000;
+  border-radius: 0.5rem;
+  font-family: 'Roboto', sans-serif;
+}
+.community-chest-card .avatar {
+  width: 50px;
+  height: 50px;
+}
+.community-chest-card #coachText {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+/* Gift emoji already included in modal title via HTML */
+
+/* Intro screen styles */
+#introScreen {
+  animation: fadeIn 1s ease forwards;
+}
+#introScreen h2 {
+  font-family: 'Luckiest Guy', cursive;
+}
+#skipIntro.btn {
+  font-weight: bold;
+}
+/* Fade-out animation for intro when skipping */
+.fade-out {
+  animation: fadeOut 0.5s ease forwards;
+}
+@keyframes fadeOut {
+  to { opacity: 0; visibility: hidden; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Flying Monopoly money animation (for rep success) */
+@keyframes flyUp {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-100px); opacity: 0; }
+}
+.money-fly {
+  position: absolute;
+  font-size: 2rem;
+  animation: flyUp 1s ease-in forwards;
+  /* Each .money-fly element will be positioned and inserted via JS */
+}
+
+/* Passed GO celebration effect (shake animation on an element) */
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(5px, 0); }
+  75% { transform: translate(-5px, 0); }
+}
+.passed-go {
+  animation: shake 0.5s ease-in-out 3;
+}

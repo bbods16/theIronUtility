@@ -3,7 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchmetrics import Accuracy, Precision, Recall, F1Score, MetricCollection
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from src.models.form_classifier import FormClassifier
 
@@ -44,6 +44,12 @@ class SquatFormTrainer(pl.LightningModule):
         # Store confidence threshold for later evaluation (not directly used in these metrics)
         self.confidence_threshold = config.eval.confidence_threshold
 
+        # For collecting predictions and labels during testing
+        self.test_preds: List[torch.Tensor] = []
+        self.test_labels: List[torch.Tensor] = []
+        self.test_logits: List[torch.Tensor] = []
+
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
@@ -65,6 +71,10 @@ class SquatFormTrainer(pl.LightningModule):
             self.test_metrics.update(preds, y)
             self.log(f'{stage}_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
             self.log_dict(self.test_metrics, on_step=False, on_epoch=True, logger=True)
+            # Store predictions and labels for detailed post-hoc analysis
+            self.test_preds.append(preds)
+            self.test_labels.append(y)
+            self.test_logits.append(logits)
 
         return loss
 
@@ -76,6 +86,22 @@ class SquatFormTrainer(pl.LightningModule):
 
     def test_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
         return self._step(batch, batch_idx, 'test')
+
+    def on_test_epoch_end(self):
+        # Concatenate all predictions and labels from the test epoch
+        all_preds = torch.cat(self.test_preds)
+        all_labels = torch.cat(self.test_labels)
+        all_logits = torch.cat(self.test_logits)
+
+        # Clear lists for next test run (if any)
+        self.test_preds.clear()
+        self.test_labels.clear()
+        self.test_logits.clear()
+
+        # Make these available as attributes for external access (e.g., by evaluate.py)
+        self.all_test_preds = all_preds
+        self.all_test_labels = all_labels
+        self.all_test_logits = all_logits
 
     def configure_optimizers(self):
         optimizer_cfg = self.config.model.optimizer

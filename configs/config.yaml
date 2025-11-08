@@ -8,6 +8,10 @@ defaults:
   - export: default
   - _self_
 
+# Project and Run details for experiment tracking
+project_name: the_iron_utility_squat
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_squat_form_train
+
 # Experiment tracking
 experiment_tracker: mlflow # or wandb
 
@@ -17,7 +21,7 @@ seed: 42
 # Paths
 paths:
   data_dir: ${oc.env:DATA_DIR, data/}
-  output_dir: ${oc.env:OUTPUT_DIR, experiments/${now:%Y-%m-%d}/${now:%H-%M-%S}}
+  output_dir: ${oc.env:OUTPUT_DIR, experiments/${run_name}} # Use run_name in output_dir
   log_dir: ${paths.output_dir}/logs
   checkpoint_dir: ${paths.output_dir}/checkpoints
   model_dir: ${paths.output_dir}/models
@@ -38,14 +42,16 @@ hydra:
   job:
     chdir: False # Keep current working directory
   sweeper:
-    direction: minimize
-    study_name: squat_form_analysis
-    n_trials: 10
-    sampler:
-      _target_: optuna.samplers.TPESampler
-      seed: ${seed}
-    pruner:
-      _target_: optuna.pruners.MedianPruner
-      n_startup_trials: 5
-      n_warmup_steps: 5
-      interval_steps: 1
+    _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper # Explicitly use Optuna sweeper
+    # Temporarily removed Optuna-specific parameters to test plugin loading
+    # direction: minimize
+    # study_name: squat_form_analysis
+    # n_trials: 10
+    # sampler:
+    #   _target_: optuna.samplers.TPESampler
+    #   seed: ${seed}
+    # pruner:
+    #   _target_: optuna.pruners.MedianPruner
+    #   n_startup_trials: 5
+    #   n_warmup_steps: 5
+    #   interval_steps: 1

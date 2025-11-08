@@ -1,2 +1,94 @@
-# theIronUtility
-Hackathon 2025 camera form analyzer
+# The Iron Utility (v1: Squat Form Analysis)
+
+## Project Objective
+
+To provide real-time, corrective feedback on a user's squat form by analyzing their webcam video feed directly in their browser. This project focuses on a two-step pipeline: real-time pose estimation followed by sequence classification of body keypoints to identify form errors.
+
+## Repository Structure
+
+This repository is structured as a monorepo to manage all components of the ML model development lifecycle, from data processing to training, evaluation, and deployment.
+
+```
+/src/                 # data modules, models, losses, metrics, trainers, inferencing
+/src/data/            # datasets, dataloaders, augmentations, tokenizers
+/src/models/          # architectures, heads, adapters (LoRA/PEFT)
+/src/train/           # train loops, schedulers, callbacks, checkpoints
+/src/eval/            # metrics, eval suites, robustness, calibration
+/scripts/             # CLI entrypoints: prepare_data, train, evaluate, export, serve
+/notebooks/           # EDA, sanity checks (kept lightweight)
+/tests/               # unit/integration/smoke (CPU & small GPU subsets)
+/configs/             # Hydra/YAML configs (data/model/train/eval/export)
+/experiments/         # tracked runs, artifacts index (symlinked to MLflow/W&B)
+/models/              # exported artifacts (TorchScript/ONNX/HF), model cards
+/data/                # DVC/LFS pointers, no raw big files
+/docs/                # DATA_CARD.md, MODEL_CARD.md, EVALUATION.md, DEPENDENCIES.md, CHANGELOG.md, METHOD_OVERRIDES.md
+/infra/               # Dockerfile, docker-compose, k8s manifests (opt)
+/.github/workflows/   # ci.yml, release.yml, security.yml
+.editorconfig
+.pre-commit-config.yaml
+pyproject.toml
+```
+
+## Setup and Installation
+
+This project uses `uv` for dependency management.
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-org/the-iron-utility.git
+    cd the-iron-utility
+    ```
+
+2.  **Install `uv`:**
+    If you don't have `uv` installed, you can get it via `pip`:
+    ```bash
+    pip install uv
+    ```
+
+3.  **Install dependencies:**
+    ```bash
+    uv pip install -e ".[dev]"
+    ```
+    This will install both runtime and development dependencies.
+
+## Development Workflow
+
+### Linting and Formatting
+
+This project uses `ruff`, `black`, and `isort` for code quality and formatting. These are configured via `pyproject.toml`.
+
+To run checks:
+```bash
+ruff check .
+black --check .
+isort --check-only .
+```
+
+To fix issues:
+```bash
+ruff check . --fix
+black .
+isort .
+```
+
+### Type Checking
+
+`mypy` is used for static type checking.
+```bash
+mypy src/
+```
+
+### Testing
+
+`pytest` is used for unit and integration tests.
+```bash
+pytest
+```
+
+## Contributing
+
+Please refer to `CONTRIBUTING.md` (to be created) for guidelines on how to contribute to this project.
+
+## License
+
+This project is licensed under the Apache-2.0 License. See the `LICENSE` file (to be created) for details.

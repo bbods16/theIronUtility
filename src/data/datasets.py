@@ -3,7 +3,8 @@ from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
 import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
+from sklearn.model_selection import train_test_split # Import for internal split fallback
 
 from src.data.components import KeypointProcessor
 
@@ -24,6 +25,7 @@ class SquatFormDataset(Dataset):
             data_dir (str): Path to the directory containing processed keypoint data.
                             Expected structure: data_dir/subject_id/clip_id.npy (keypoints)
                                                 data_dir/labels.csv (clip_id, subject_id, label)
+                                                data_dir/subject_metadata.csv (subject_id, skin_tone, body_type, etc.)
             label_map (Dict[str, int]): Mapping from string labels to integer IDs.
             keypoint_processor_config (Dict): Configuration for KeypointProcessor.
             is_train (bool): Whether this is a training dataset (enables augmentation).
@@ -40,17 +42,25 @@ class SquatFormDataset(Dataset):
         self.class_weights = self._calculate_class_weights()
 
     def _load_metadata(self, split_subjects: List[str]) -> pd.DataFrame:
-        """Loads clip metadata and filters by subject IDs for the current split."""
+        """Loads clip and subject metadata and filters by subject IDs for the current split."""
         labels_path = os.path.join(self.data_dir, "labels.csv")
+        subject_metadata_path = os.path.join(self.data_dir, "subject_metadata.csv")
+
         if not os.path.exists(labels_path):
             raise FileNotFoundError(f"labels.csv not found at {labels_path}")
+        if not os.path.exists(subject_metadata_path):
+            raise FileNotFoundError(f"subject_metadata.csv not found at {subject_metadata_path}")
 
         all_labels = pd.read_csv(labels_path)
+        all_subject_metadata = pd.read_csv(subject_metadata_path)
+
+        # Merge clip labels with subject metadata
+        merged_metadata = pd.merge(all_labels, all_subject_metadata, on='subject_id', how='left')
 
         if split_subjects:
-            metadata = all_labels[all_labels['subject_id'].isin(split_subjects)].copy()
+            metadata = merged_metadata[merged_metadata['subject_id'].isin(split_subjects)].copy()
         else:
-            metadata = all_labels.copy()
+            metadata = merged_metadata.copy()
 
         if metadata.empty:
             raise ValueError(f"No data found for subjects: {split_subjects} in {self.data_dir}")
@@ -87,7 +97,7 @@ class SquatFormDataset(Dataset):
     def __len__(self) -> int:
         return len(self.metadata)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
         row = self.metadata.iloc[idx]
         keypoint_path = row['keypoint_path']
         label_str = row['label']
@@ -109,7 +119,13 @@ class SquatFormDataset(Dataset):
         keypoints_tensor = torch.tensor(processed_keypoints, dtype=torch.float32)
         label_tensor = torch.tensor(self.label_map[label_str], dtype=torch.long)
 
-        return keypoints_tensor, label_tensor
+        # Extract relevant metadata for this item
+        # Exclude columns that are already handled or not needed for item_metadata
+        item_metadata = row.drop(
+            ['clip_id', 'subject_id', 'label', 'keypoint_path'], errors='ignore'
+        ).to_dict()
+
+        return keypoints_tensor, label_tensor, item_metadata
 
 class SquatFormDatamodule:
     """
@@ -118,47 +134,79 @@ class SquatFormDatamodule:
     """
     def __init__(self, config: Dict):
         self.config = config
-        self.data_dir = config.data.dataset_dir
+        self.data_dir = os.path.join(config.paths.data_dir, "processed", "squat_form") # Corrected path
+        self.split_dir = os.path.join(config.paths.data_dir, "splits") # New: path to splits
         self.batch_size = config.data.batch_size
         self.num_workers = config.data.num_workers
         self.pin_memory = config.data.pin_memory
 
-        # Define label map based on problem spec
+        # Define label map based on problem spec and client-side ERROR_LABELS
         self.label_map = {
             "good_rep": 0,
-            "knees_caving": 1,
-            "not_deep_enough": 2,
-            "butt_wink": 3,
-            "spinal_flexion": 4,
+            "KNEE_VALGUS": 1, # Changed from "knees_caving" to match client-side
+            "NOT_DEEP_ENOUGH": 2,
+            "BUTT_WINK": 3,
+            "SPINAL_FLEXION": 4,
         }
         self.num_classes = len(self.label_map)
+        self.idx_to_class = {v: k for k, v in self.label_map.items()} # For easy lookup
 
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
         self.class_weights = None
 
+    def _load_subjects_from_file(self, file_path: str) -> List[str]:
+        """Helper to load subject IDs from a text file."""
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return [line.strip() for line in f if line.strip()]
+        return None
+
     def setup(self, stage: str = None):
         """
         Loads and splits the dataset.
+        Prioritizes loading pre-defined splits from files.
         """
-        # Load all metadata to get subject IDs for splitting
-        all_labels_path = os.path.join(self.data_dir, "labels.csv")
-        if not os.path.exists(all_labels_path):
-            raise FileNotFoundError(f"labels.csv not found at {all_labels_path}")
-        all_labels = pd.read_csv(all_labels_path)
-        all_subjects = all_labels['subject_id'].unique().tolist()
+        train_subjects = self._load_subjects_from_file(os.path.join(self.split_dir, "train_subjects.txt"))
+        val_subjects = self._load_subjects_from_file(os.path.join(self.split_dir, "val_subjects.txt"))
+        test_subjects = self._load_subjects_from_file(os.path.join(self.split_dir, "test_subjects.txt"))
 
-        # Perform subject-stratified split
-        np.random.seed(self.config.seed)
-        np.random.shuffle(all_subjects)
+        if not (train_subjects and val_subjects and test_subjects):
+            print("Split subject files not found. Generating splits internally.")
+            # Fallback: Load all metadata to get subject IDs for splitting
+            all_labels_path = os.path.join(self.data_dir, "labels.csv")
+            if not os.path.exists(all_labels_path):
+                raise FileNotFoundError(f"labels.csv not found at {all_labels_path}")
+            all_labels = pd.read_csv(all_labels_path)
+            all_subjects = all_labels['subject_id'].unique().tolist()
 
-        train_split_idx = int(len(all_subjects) * self.config.data.train_split_ratio)
-        val_split_idx = int(len(all_subjects) * (self.config.data.train_split_ratio + self.config.data.val_split_ratio))
+            # Perform subject-stratified split
+            np.random.seed(self.config.seed) # Ensure reproducibility of split
+            np.random.shuffle(all_subjects)
 
-        train_subjects = all_subjects[:train_split_idx]
-        val_subjects = all_subjects[train_split_idx:val_split_idx]
-        test_subjects = all_subjects[val_split_idx:]
+            train_ratio = self.config.data.train_split_ratio
+            val_ratio = self.config.data.val_split_ratio
+            test_ratio = self.config.data.test_split_ratio
+
+            # Adjust ratios to sum to 1 if they don't, and ensure test_ratio is derived
+            if not np.isclose(train_ratio + val_ratio + test_ratio, 1.0):
+                print("Warning: Train/Val/Test ratios do not sum to 1. Adjusting test ratio.")
+                test_ratio = 1.0 - (train_ratio + val_ratio)
+                if test_ratio < 0:
+                    raise ValueError("Invalid train/val ratios, sum exceeds 1.0.")
+
+            train_subjects, temp_subjects = train_test_split(
+                all_subjects, train_size=train_ratio, random_state=self.config.seed
+            )
+            val_subjects, test_subjects = train_test_split(
+                temp_subjects, train_size=val_ratio / (val_ratio + test_ratio), random_state=self.config.seed
+            )
+            print(f"Generated Train subjects: {len(train_subjects)}, Val subjects: {len(val_subjects)}, Test subjects: {len(test_subjects)}")
+        else:
+            print("Loaded subject splits from files.")
+            print(f"Train subjects: {len(train_subjects)}, Val subjects: {len(val_subjects)}, Test subjects: {len(test_subjects)}")
+
 
         # Create datasets
         self.train_dataset = SquatFormDataset(

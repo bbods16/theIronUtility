@@ -3,6 +3,7 @@ stages:
     cmd: python scripts/prepare_data.py
     deps:
       - scripts/prepare_data.py
-      - data/raw/
     outs:
       - data/processed/squat_form/
+      - data/splits/
+      - data/processed/squat_form/subject_metadata.csv # Added subject metadata to DVC tracking

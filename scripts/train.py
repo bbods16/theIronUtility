@@ -1,9 +1,10 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import MLFlowLogger
 import torch
+import os
 
 from src.data.datasets import SquatFormDatamodule
 from src.train.trainer import SquatFormTrainer
@@ -51,15 +52,28 @@ def train(cfg: DictConfig):
     )
     callbacks.append(checkpoint_callback)
 
+    # Learning Rate Monitor
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
+    callbacks.append(lr_monitor)
+
     # --- Logger ---
     if cfg.experiment_tracker == "mlflow":
+        # Ensure the MLflow tracking URI is set if not already
+        if "MLFLOW_TRACKING_URI" not in os.environ:
+            # Default to local MLruns directory within the output_dir
+            mlflow_tracking_uri = os.path.join(cfg.paths.output_dir, "mlruns")
+            os.makedirs(mlflow_tracking_uri, exist_ok=True)
+            os.environ["MLFLOW_TRACKING_URI"] = f"file://{mlflow_tracking_uri}"
+            print(f"MLFLOW_TRACKING_URI set to: {os.environ['MLFLOW_TRACKING_URI']}")
+
         mlflow_logger = MLFlowLogger(
-            experiment_name=cfg.project_name, # Assuming project_name is defined in config
-            run_name=cfg.run_name, # Assuming run_name is defined in config
-            save_dir=cfg.paths.output_dir,
-            log_model=cfg.train.tracker.log_model
+            experiment_name=cfg.project_name,
+            run_name=cfg.run_name,
+            save_dir=cfg.paths.output_dir, # MLflow artifacts will be saved here
+            log_model=cfg.train.tracker.log_model,
+            # We don't pass tags or params here, as Lightning handles it
         )
-        # Log hyperparameters to MLflow
+        # Log hyperparameters to MLflow using the logger's API
         mlflow_logger.log_hyperparams(OmegaConf.to_container(cfg, resolve=True))
     else:
         mlflow_logger = None # Or configure other loggers like WandbLogger
@@ -74,6 +88,7 @@ def train(cfg: DictConfig):
         log_every_n_steps=cfg.log_interval,
         precision=cfg.model.mixed_precision.dtype if cfg.model.mixed_precision.enabled else 32,
         gradient_clip_val=cfg.train.gradient_clipping.clip_value if cfg.train.gradient_clipping.enabled else 0,
+        accumulate_grad_batches=cfg.train.accumulate_grad_batches, # Integrate gradient accumulation
         # For DDP
         strategy="ddp" if cfg.train.ddp.enabled and len(cfg.gpu_ids) > 1 else "auto",
         # Resume from checkpoint
@@ -81,17 +96,19 @@ def train(cfg: DictConfig):
     )
 
     # --- Training ---
+    print("Starting model training...")
     trainer.fit(model, datamodule=datamodule)
+    print("Model training complete.")
 
     # --- Test Best Model ---
     # Load the best model checkpoint for testing
     best_model_path = checkpoint_callback.best_model_path
     if best_model_path:
-        print(f"Loading best model from {best_model_path} for testing.")
-        # trainer.test(ckpt_path=best_model_path, datamodule=datamodule)
-        # For now, we'll just log that it's done. Full evaluation will be a separate script.
+        print(f"Testing best model from {best_model_path}...")
+        trainer.test(ckpt_path=best_model_path, datamodule=datamodule)
+        print("Testing complete.")
     else:
-        print("No best model checkpoint found.")
+        print("No best model checkpoint found for testing.")
 
 
 if __name__ == "__main__":

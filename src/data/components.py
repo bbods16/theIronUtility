@@ -6,13 +6,14 @@ class KeypointProcessor:
     Handles normalization and augmentation of keypoint sequences.
     """
     def __init__(self, config):
+        # config here is expected to be the 'augmentations' part of the overall config
         self.config = config
 
     def normalize_keypoints(self, keypoints: np.ndarray) -> np.ndarray:
         """
         Normalizes keypoint coordinates for scale and translation invariance.
         Assumes keypoints are (num_frames, num_keypoints, 3) for (x, y, z).
-        Normalization by hip-to-shoulder distance.
+        Normalization by hip-to_shoulder distance.
         """
         if not self.config.normalization.enabled:
             return keypoints
@@ -76,6 +77,7 @@ class KeypointProcessor:
         Applies normalization and optionally augmentation.
         """
         processed_keypoints = self.normalize_keypoints(keypoints)
-        if is_train and self.config.augmentations.enabled:
+        # Check self.config.enabled directly, as self.config is already the augmentations config
+        if is_train and self.config.enabled:
             processed_keypoints = self.augment_keypoints(processed_keypoints)
         return processed_keypoints.reshape(processed_keypoints.shape[0], -1) # Flatten to (num_frames, num_keypoints * 3)

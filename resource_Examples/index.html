@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Iron Utility – Monopoly Edition</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Monopoly Theme CSS -->
+  <link rel="stylesheet" href="style.css" />
+  <!-- Monopoly-Themed Font (Google Fonts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Roboto:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <!-- Monopoly Dice Roll Intro Screen -->
+  <div id="introScreen" class="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-dark text-white" style="z-index: 2000;">
+    <div class="text-center">
+      <img src="assets/images/dice-roll.gif" alt="Rolling Dice" class="mb-3" style="max-width: 150px;">
+      <h2 class="fw-bold">Roll the Dice to Start Your Workout!</h2>
+      <p class="fst-italic">Welcome to <span class="text-warning">The Iron Utility</span> – Monopoly Edition</p>
+      <button id="skipIntro" class="btn btn-light mt-2">Skip Intro <span class="emoji">🎲</span></button>
+    </div>
+  </div>
+
+  <div class="container-fluid py-3">
+    <div class="row">
+      <!-- Main Video/Canvas Panel -->
+      <div id="videoPanel" class="col-md-8 mb-4 position-relative">
+        <h1 class="display-5 text-primary fw-bold mb-3">
+          <span class="emoji">💪</span> The Iron Utility
+        </h1>
+        <!-- Media Container: video (hidden) and overlay canvas -->
+        <div class="media-container position-relative bg-secondary rounded">
+          <video id="videoElement" autoplay playsinline class="position-absolute w-100 h-100" style="display:none;"></video>
+          <canvas id="outputCanvas" class="w-100 bg-dark rounded"></canvas>
+          <!-- Score HUD overlay on canvas -->
+          <div id="scoreHUD" class="position-absolute top-0 start-0 m-3 p-2 bg-white bg-opacity-75 rounded text-dark fw-bold">
+            Score: <span id="scoreDisplay">0</span>
+          </div>
+          <!-- Feedback HUD overlay on canvas (Chance card style) -->
+          <div id="feedbackBox" class="position-absolute bottom-0 start-50 translate-middle-x mb-3 p-3 chance-card text-center"></div>
+        </div>
+      </div>
+
+      <!-- Sidebar Panel for controls and mini-board -->
+      <div id="sidebar" class="col-md-4">
+        <!-- Start Workout Button -->
+        <button id="startButton" class="btn btn-danger btn-lg w-100 mb-3 fw-bold">
+          <span class="emoji">🎲</span> Start Workout
+        </button>
+        <!-- Mini Monopoly Board (progress tracker) -->
+        <div id="miniBoard" class="mini-board mb-4 position-relative mx-auto">
+          <!-- Token piece that moves around the board -->
+          <div id="playerToken" class="token position-absolute"><!-- token icon inserted via CSS --></div>
+          <!-- GO corner label -->
+          <div class="board-label go">GO</div>
+          <!-- Jail corner label -->
+          <div class="board-label jail">JAIL</div>
+          <!-- Free Parking corner label -->
+          <div class="board-label free-parking">FREE PARKING</div>
+          <!-- Go To Jail corner label -->
+          <div class="board-label go-to-jail">GO TO JAIL</div>
+        </div>
+        <!-- Leaderboard Button -->
+        <button id="showLeaderboardBtn" class="btn btn-success w-100 mb-3">
+          View Leaderboard <span class="emoji">📈</span>
+        </button>
+        <!-- (Optional additional controls or info could go here) -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal (styled as property deed cards) -->
+  <div class="modal fade" id="leaderboardModal" tabindex="-1" aria-labelledby="leaderboardTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content property-card text-dark">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold" id="leaderboardTitle">🏅 Top Players</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <ul id="leaderboardList" class="list-unstyled mb-0">
+            <!-- Leaderboard entries will be injected here by UIManager (each entry styled like a deed card) -->
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post-Workout AI Coaching Modal (styled as Community Chest card) -->
+  <div class="modal fade" id="coachingModal" tabindex="-1" aria-labelledby="coachingTitle" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content community-chest-card text-dark p-3">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title text-center w-100 fw-bold" id="coachingTitle">
+            <span class="emoji">🎁</span> Community Chest <span class="emoji">🎁</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <!-- Mr. Monopoly avatar and coaching text -->
+          <div class="d-flex align-items-center justify-content-center mb-3">
+            <img src="assets/images/monopoly-avatar.png" alt="Mr. Monopoly" class="avatar me-3">  <!-- Placeholder avatar image -->
+            <p id="coachText" class="mb-0 text-start"></p>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-warning w-100 fw-bold" data-bs-dismiss="modal">
+            OK <span class="emoji">✔️</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (for modals) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- App Scripts -->
+  <script src="media.js"></script>
+  <script src="formChecker.js"></script>
+  <script src="ai-core.js"></script>
+  <script src="UIManager.js"></script>
+</body>
+</html>
