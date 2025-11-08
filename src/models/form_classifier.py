@@ -3,18 +3,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import List
 
+class Chomp1d(nn.Module):
+    """
+    Custom module to remove padding from the end of a sequence.
+    Used in TCNs to ensure causality.
+    """
+    def __init__(self, chomp_size):
+        super(Chomp1d, self).__init__()
+        self.chomp_size = chomp_size
+
+    def forward(self, x):
+        return x[:, :, :-self.chomp_size].contiguous()
+
 class TemporalBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, dropout):
         super(TemporalBlock, self).__init__()
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size,
                                stride=stride, padding=padding, dilation=dilation)
-        self.chomp1 = nn.Chomp1d(padding)
+        self.chomp1 = Chomp1d(padding) # Use custom Chomp1d
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout)
 
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size,
                                stride=stride, padding=padding, dilation=dilation)
-        self.chomp2 = nn.Chomp1d(padding)
+        self.chomp2 = Chomp1d(padding) # Use custom Chomp1d
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
 

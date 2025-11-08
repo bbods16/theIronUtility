@@ -60,8 +60,10 @@ def train(cfg: DictConfig):
     if cfg.experiment_tracker == "mlflow":
         # Ensure the MLflow tracking URI is set if not already
         if "MLFLOW_TRACKING_URI" not in os.environ:
-            # Default to local MLruns directory within the output_dir
-            mlflow_tracking_uri = os.path.join(cfg.paths.output_dir, "mlruns")
+            # Set MLFLOW_TRACKING_URI to a dedicated 'mlruns' directory at the project root
+            # This is where MLflow will store its tracking database and experiment metadata
+            project_root = os.getcwd() # Get the current working directory (project root)
+            mlflow_tracking_uri = os.path.join(project_root, "mlruns_tracking") # Use a distinct name
             os.makedirs(mlflow_tracking_uri, exist_ok=True)
             os.environ["MLFLOW_TRACKING_URI"] = f"file://{mlflow_tracking_uri}"
             print(f"MLFLOW_TRACKING_URI set to: {os.environ['MLFLOW_TRACKING_URI']}")
@@ -69,7 +71,7 @@ def train(cfg: DictConfig):
         mlflow_logger = MLFlowLogger(
             experiment_name=cfg.project_name,
             run_name=cfg.run_name,
-            save_dir=cfg.paths.output_dir, # MLflow artifacts will be saved here
+            save_dir=cfg.paths.output_dir, # This is where run artifacts (checkpoints, etc.) will be saved
             log_model=cfg.train.tracker.log_model,
             # We don't pass tags or params here, as Lightning handles it
         )

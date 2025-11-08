@@ -1,0 +1,12 @@
+LICENSE
+README.md
+pyproject.toml
+src/data/components.py
+src/data/datasets.py
+src/models/form_classifier.py
+src/the_iron_utility.egg-info/PKG-INFO
+src/the_iron_utility.egg-info/SOURCES.txt
+src/the_iron_utility.egg-info/dependency_links.txt
+src/the_iron_utility.egg-info/requires.txt
+src/the_iron_utility.egg-info/top_level.txt
+src/train/trainer.py

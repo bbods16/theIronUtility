@@ -1,18 +1,18 @@
 // formChecker.js - Analyzes pose landmarks to provide squat form feedback
 const formChecker = (function(){
-  let mlModel = null; // Placeholder for the loaded ML model (TensorFlow.js or ONNX.js)
+  let mlModelSession = null; // ONNX Runtime InferenceSession
   let repCount = 0;
   let currentRepStage = 'initial'; // 'initial', 'descending', 'bottom', 'ascending', 'top'
   let repStarted = false;
   let repCompletedThisFrame = false;
+  let keypointSequence = []; // Stores a sequence of processed keypoints for the ML model
+  const SEQUENCE_LENGTH = 100; // Must match the sequence_length used in Python training
+  const NUM_KEYPOINTS = 33; // MediaPipe Pose
+  const NUM_COORDS = 3; // x, y, z
 
-  // Configuration for squat analysis (angles, thresholds)
+  // Configuration for squat analysis (angles, thresholds) - mostly for rep counting now
   const SQUAT_THRESHOLDS = {
-    KNEE_ANGLE_BOTTOM: 80,  // Angle at the bottom of the squat (e.g., < 80 degrees)
-    HIP_ANGLE_BOTTOM: 90,   // Angle at the bottom of the squat (e.g., < 90 degrees)
     MIN_REP_DEPTH: 0.6,     // Ratio of hip_y / knee_y for depth check
-    KNEE_VALGUS_THRESHOLD: 0.1, // Threshold for knee caving (e.g., distance between knees vs ankles)
-    SPINAL_FLEXION_THRESHOLD: 0.1 // Threshold for back rounding
   };
 
   // Map integer class IDs from ML model to human-readable error strings
@@ -25,41 +25,42 @@ const formChecker = (function(){
   };
 
   // --- Helper Functions for Keypoint Processing ---
-  // These will be more robustly implemented once the exact keypoint format from MediaPipe is confirmed
   function getKeypoint(landmarks, index) {
     if (!landmarks || !landmarks[index]) return null;
-    // Assuming landmarks are in normalized [0,1] coordinates or similar
-    return landmarks[index]; // {x, y, z, visibility}
-  }
-
-  function calculateAngle(p1, p2, p3) {
-    // Calculates angle between three points (p2 is the vertex)
-    if (!p1 || !p2 || !p3) return null;
-    const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
-    const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
-    const dot = v1.x * v2.x + v1.y * v2.y;
-    const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
-    const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
-    if (mag1 === 0 || mag2 === 0) return null;
-    const angleRad = Math.acos(dot / (mag1 * mag2));
-    return angleRad * 180 / Math.PI; // Convert to degrees
+    // MediaPipe landmarks are typically {x, y, z, visibility, presence}
+    return landmarks[index];
   }
 
   function normalizeKeypoints(landmarks) {
-    // This function should mirror the normalization done in the Python training pipeline
-    // For now, a simple placeholder.
+    // This function must mirror the normalization done in the Python training pipeline
     if (!landmarks || landmarks.length === 0) return null;
 
-    // Example: Center around hip and scale by torso length
+    // Assuming MediaPipe keypoint indices:
+    // 11: left_hip, 12: right_hip
+    // 23: left_shoulder, 24: right_shoulder
+
     const leftHip = getKeypoint(landmarks, 11);
     const rightHip = getKeypoint(landmarks, 12);
     const leftShoulder = getKeypoint(landmarks, 23);
     const rightShoulder = getKeypoint(landmarks, 24);
 
-    if (!leftHip || !rightHip || !leftShoulder || !rightShoulder) return null;
+    if (!leftHip || !rightHip || !leftShoulder || !rightShoulder ||
+        leftHip.visibility < 0.5 || rightHip.visibility < 0.5 ||
+        leftShoulder.visibility < 0.5 || rightShoulder.visibility < 0.5) {
+      // If critical keypoints are not visible, return null or a zero array
+      return new Array(NUM_KEYPOINTS * NUM_COORDS).fill(0);
+    }
 
-    const hipCenter = { x: (leftHip.x + rightHip.x) / 2, y: (leftHip.y + rightHip.y) / 2, z: (leftHip.z + rightHip.z) / 2 };
-    const shoulderCenter = { x: (leftShoulder.x + rightShoulder.x) / 2, y: (leftShoulder.y + rightShoulder.y) / 2, z: (leftShoulder.z + rightShoulder.z) / 2 };
+    const hipCenter = {
+      x: (leftHip.x + rightHip.x) / 2,
+      y: (leftHip.y + rightHip.y) / 2,
+      z: (leftHip.z + rightHip.z) / 2
+    };
+    const shoulderCenter = {
+      x: (leftShoulder.x + rightShoulder.x) / 2,
+      y: (leftShoulder.y + rightShoulder.y) / 2,
+      z: (leftShoulder.z + rightShoulder.z) / 2
+    };
 
     const scaleFactor = Math.sqrt(
       Math.pow(hipCenter.x - shoulderCenter.x, 2) +
@@ -67,34 +68,41 @@ const formChecker = (function(){
       Math.pow(hipCenter.z - shoulderCenter.z, 2)
     );
 
-    if (scaleFactor === 0) return null;
+    if (scaleFactor === 0) return new Array(NUM_KEYPOINTS * NUM_COORDS).fill(0); // Avoid division by zero
 
-    const normalized = landmarks.map(kp => ({
-      x: (kp.x - hipCenter.x) / scaleFactor,
-      y: (kp.y - hipCenter.y) / scaleFactor,
-      z: (kp.z - hipCenter.z) / scaleFactor,
-      visibility: kp.visibility
-    }));
-
-    // Flatten to a 1D array of features (x, y, z for each keypoint)
-    return normalized.flatMap(kp => [kp.x, kp.y, kp.z]); // Ignoring visibility for now
+    const processed = [];
+    for (let i = 0; i < NUM_KEYPOINTS; i++) {
+      const kp = getKeypoint(landmarks, i);
+      if (kp && kp.visibility > 0.5) { // Only use visible keypoints
+        processed.push((kp.x - hipCenter.x) / scaleFactor);
+        processed.push((kp.y - hipCenter.y) / scaleFactor);
+        processed.push((kp.z - hipCenter.z) / scaleFactor);
+      } else {
+        processed.push(0, 0, 0); // Fill with zeros if keypoint not visible
+      }
+    }
+    return processed; // Flattened array of (x,y,z) for each keypoint
   }
 
-  // --- Rep Counting Logic (Heuristic for now, ML model will refine) ---
+  // --- Rep Counting Logic ---
   function updateRepStatus(landmarks) {
     repCompletedThisFrame = false;
     if (!landmarks) return;
 
     const hip = getKeypoint(landmarks, 24); // Assuming right hip for simplicity
     const knee = getKeypoint(landmarks, 26); // Assuming right knee
-    const ankle = getKeypoint(landmarks, 28); // Assuming right ankle
 
-    if (!hip || !knee || !ankle) return;
+    if (!hip || !knee || hip.visibility < 0.5 || knee.visibility < 0.5) return;
 
     // Simple heuristic: hip_y relative to knee_y to detect squat depth
-    const depthRatio = hip.y / knee.y; // Lower y means deeper in normalized coords
+    // Note: In normalized coordinates, lower y means higher position if origin is top-left.
+    // If normalized by hip-to-shoulder, y-axis might be inverted or centered.
+    // Assuming lower y-value means deeper squat for now.
+    const depthRatio = hip.y - knee.y; // Relative y-position of hip to knee
 
-    if (currentRepStage === 'initial' && depthRatio > SQUAT_THRESHOLDS.MIN_REP_DEPTH + 0.1) {
+    // This rep counting logic is simplified. A more robust one would track
+    // velocity, acceleration, and specific joint angles over time.
+    if (currentRepStage === 'initial' && depthRatio > SQUAT_THRESHOLDS.MIN_REP_DEPTH) {
       // User is standing, ready to start
       repStarted = false;
     } else if (!repStarted && depthRatio < SQUAT_THRESHOLDS.MIN_REP_DEPTH) {
@@ -118,101 +126,122 @@ const formChecker = (function(){
 
   // --- ML Model Inference ---
   async function loadMlModel() {
-    // TODO: Load the exported TensorFlow.js or ONNX.js model here
-    // Example for TensorFlow.js:
-    // mlModel = await tf.loadGraphModel('path/to/your/model.json');
-    // Example for ONNX.js:
-    // mlModel = new onnx.InferenceSession();
-    // await mlModel.loadModel('path/to/your/model.onnx');
-    console.log("ML Model loading placeholder...");
-    // For now, mlModel remains null, and we'll rely on heuristics.
+    try {
+      // Path to your exported ONNX model
+      const modelPath = 'models/squat_form_model.onnx'; // Assuming model is in resource_Examples/models/
+      mlModelSession = await ort.InferenceSession.create(modelPath);
+      console.log("ONNX ML Model loaded successfully.");
+    } catch (e) {
+      console.error("Failed to load ONNX ML Model:", e);
+      mlModelSession = null;
+    }
   }
 
-  async function runMlInference(processedKeypoints) {
-    if (!mlModel) {
+  async function runMlInference(sequence) {
+    if (!mlModelSession) {
       console.warn("ML Model not loaded. Skipping inference.");
       return null;
     }
-    // TODO: Prepare input tensor, run inference, and process output
-    // Example for TensorFlow.js:
-    // const inputTensor = tf.tensor(processedKeypoints, [1, SEQUENCE_LENGTH, NUM_FEATURES]);
-    // const predictions = mlModel.predict(inputTensor);
-    // const outputArray = predictions.array(); // Get raw probabilities
-    // return outputArray;
-    return null; // Return null if model not loaded or for placeholder
+
+    // ONNX model expects input shape [1, SEQUENCE_LENGTH, NUM_KEYPOINTS * NUM_COORDS]
+    // The sequence is already flattened (NUM_KEYPOINTS * NUM_COORDS)
+    const inputTensor = new ort.Tensor('float32', new Float32Array(sequence), [1, SEQUENCE_LENGTH, NUM_KEYPOINTS * NUM_COORDS]);
+
+    try {
+      const feeds = { input: inputTensor }; // 'input' is the name defined during ONNX export
+      const results = await mlModelSession.run(feeds);
+      const output = results.output.data; // 'output' is the name defined during ONNX export
+
+      // Convert raw output (logits) to probabilities
+      const probabilities = softmax(Array.from(output));
+      return probabilities;
+    } catch (e) {
+      console.error("ONNX inference failed:", e);
+      return null;
+    }
+  }
+
+  function softmax(arr) {
+    const maxVal = Math.max(...arr);
+    const expArr = arr.map(x => Math.exp(x - maxVal)); // Subtract max for numerical stability
+    const sumExpArr = expArr.reduce((a, b) => a + b, 0);
+    return expArr.map(x => x / sumExpArr);
   }
 
   // --- Public Interface ---
   return {
     init: async function() {
       await loadMlModel();
-      console.log("FormChecker initialized. ML Model status:", mlModel ? "Loaded" : "Not Loaded (using heuristics)");
+      console.log("FormChecker initialized. ML Model status:", mlModelSession ? "Loaded" : "Not Loaded (using heuristics)");
     },
 
     analyze: async function(landmarks) {
       repCompletedThisFrame = false; // Reset for current frame
+      let errors = [];
+      let mlPredictedClassId = null;
+      let mlConfidence = 0;
 
       if (!landmarks) {
+        // If no landmarks, clear sequence and return
+        keypointSequence = [];
         return { repCompleted: false, errors: [] };
       }
 
-      // 1. Pre-process landmarks (normalization, flattening)
+      // 1. Pre-process current frame's landmarks (normalization, flattening)
       const processedKeypoints = normalizeKeypoints(landmarks);
       if (!processedKeypoints) {
-        return { repCompleted: false, errors: [] };
-      }
-
-      // 2. Run ML model inference (if loaded)
-      let mlPredictions = null;
-      if (mlModel) {
-        mlPredictions = await runMlInference(processedKeypoints);
-      }
-
-      // 3. Interpret ML predictions or use heuristics
-      let errors = [];
-      let predictedClassId = null;
-      let confidence = 0;
-
-      if (mlPredictions) {
-        // Assuming mlPredictions is an array of probabilities for each class
-        predictedClassId = mlPredictions.indexOf(Math.max(...mlPredictions));
-        confidence = mlPredictions[predictedClassId];
-
-        // Apply confidence threshold from Python config (e.g., 0.90)
-        if (confidence > 0.90 && predictedClassId !== ERROR_LABELS.good_rep) {
-          errors.push(ERROR_LABELS[predictedClassId]);
-        }
+        // If processing fails for current frame, append zeros or skip
+        keypointSequence.push(new Array(NUM_KEYPOINTS * NUM_COORDS).fill(0));
       } else {
-        // Fallback to heuristic-based error checking if ML model not loaded
-        // This is a simplified example and needs proper implementation
-        const kneeAngle = calculateAngle(getKeypoint(landmarks, 24), getKeypoint(landmarks, 26), getKeypoint(landmarks, 28));
-        if (kneeAngle && kneeAngle < SQUAT_THRESHOLDS.KNEE_ANGLE_BOTTOM) {
-          // This is just a depth check, not a specific error like KNEE_VALGUS
-          // For a real heuristic, we'd need more complex geometry checks.
-        }
-        // Example heuristic for KNEE_VALGUS (knees caving in)
-        const leftKnee = getKeypoint(landmarks, 25);
-        const rightKnee = getKeypoint(landmarks, 26);
-        const leftAnkle = getKeypoint(landmarks, 27);
-        const rightAnkle = getKeypoint(landmarks, 28);
+        keypointSequence.push(processedKeypoints);
+      }
 
-        if (leftKnee && rightKnee && leftAnkle && rightAnkle) {
-          const kneeDist = Math.abs(leftKnee.x - rightKnee.x);
-          const ankleDist = Math.abs(leftAnkle.x - rightAnkle.x);
-          // If knees are significantly closer than ankles (simplified)
-          if (kneeDist < ankleDist * (1 - SQUAT_THRESHOLDS.KNEE_VALGUS_THRESHOLD)) {
-            errors.push("KNEE_VALGUS");
+      // Maintain fixed sequence length
+      if (keypointSequence.length > SEQUENCE_LENGTH) {
+        keypointSequence.shift(); // Remove oldest frame
+      } else if (keypointSequence.length < SEQUENCE_LENGTH) {
+        // Pad with zeros if not enough frames yet
+        while (keypointSequence.length < SEQUENCE_LENGTH) {
+          keypointSequence.unshift(new Array(NUM_KEYPOINTS * NUM_COORDS).fill(0));
+        }
+      }
+
+      // Only run ML inference if sequence is full
+      if (keypointSequence.length === SEQUENCE_LENGTH && mlModelSession) {
+        // Flatten the 2D array of keypoints into a 1D array for the ONNX input
+        const flatSequence = keypointSequence.flat();
+        const mlPredictions = await runMlInference(flatSequence);
+
+        if (mlPredictions) {
+          // Find the class with the highest probability
+          mlPredictedClassId = mlPredictions.indexOf(Math.max(...mlPredictions));
+          mlConfidence = mlPredictions[mlPredictedClassId];
+
+          // Apply confidence threshold from Python config (e.g., 0.90)
+          // Only report error if confidence is high and it's not 'good_rep'
+          if (mlConfidence > 0.90 && mlPredictedClassId !== ERROR_LABELS.good_rep) {
+            errors.push(ERROR_LABELS[mlPredictedClassId]);
           }
         }
+      } else if (!mlModelSession) {
+        // Fallback to heuristic-based error checking if ML model not loaded
+        // This is a simplified example and needs proper implementation
+        // For demo, we'll just show a dummy error if ML model isn't loaded
+        // In a real app, you'd have more robust heuristics here.
+        // if (Math.random() < 0.01) { // 1% chance of a dummy error
+        //   errors.push("KNEE_VALGUS");
+        // }
       }
 
-      // 4. Update rep status (can be driven by ML model or heuristics)
-      updateRepStatus(landmarks); // This heuristic is still active for rep counting
+      // Update rep status (still using heuristic for rep counting)
+      updateRepStatus(landmarks);
 
       return {
         repCompleted: repCompletedThisFrame,
         errors: errors,
         currentRepCount: repCount,
+        mlConfidence: mlConfidence,
+        mlPredictedClass: ERROR_LABELS[mlPredictedClassId] || "N/A",
         // Add other relevant analysis data here, e.g., confidence, current stage
       };
     },
@@ -226,6 +255,7 @@ const formChecker = (function(){
       currentRepStage = 'initial';
       repStarted = false;
       repCompletedThisFrame = false;
+      keypointSequence = []; // Clear sequence on reset
       // Optionally unload ML model or reset its state if needed
     }
   };

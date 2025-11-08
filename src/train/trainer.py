@@ -20,7 +20,7 @@ class SquatFormTrainer(pl.LightningModule):
         # Model
         self.model = FormClassifier(
             classifier=config.model.classifier,
-            num_classes=config.model.num_classes,
+            num_classes=config.model.classifier.num_classes, # Corrected access path
             input_dim=config.model.classifier.input_dim
         )
 
@@ -32,10 +32,10 @@ class SquatFormTrainer(pl.LightningModule):
 
         # Metrics
         metrics = MetricCollection({
-            'accuracy': Accuracy(task="multiclass", num_classes=config.model.num_classes),
-            'precision': Precision(task="multiclass", num_classes=config.model.num_classes, average='macro'),
-            'recall': Recall(task="multiclass", num_classes=config.model.num_classes, average='macro'),
-            'f1_score': F1Score(task="multiclass", num_classes=config.model.num_classes, average='macro'),
+            'accuracy': Accuracy(task="multiclass", num_classes=config.model.classifier.num_classes), # Corrected access path
+            'precision': Precision(task="multiclass", num_classes=config.model.classifier.num_classes, average='macro'), # Corrected access path
+            'recall': Recall(task="multiclass", num_classes=config.model.classifier.num_classes, average='macro'), # Corrected access path
+            'f1_score': F1Score(task="multiclass", num_classes=config.model.classifier.num_classes, average='macro'), # Corrected access path
         })
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
@@ -98,7 +98,7 @@ class SquatFormTrainer(pl.LightningModule):
         self.test_labels.clear()
         self.test_logits.clear()
 
-        # Make these available as attributes for external access (e.g., by evaluate.py)
+        # Make these available as attributes for external access (e.e.g., by evaluate.py)
         self.all_test_preds = all_preds
         self.all_test_labels = all_labels
         self.all_test_logits = all_logits

@@ -17,6 +17,7 @@ class SquatFormDataset(Dataset):
                  data_dir: str,
                  label_map: Dict[str, int],
                  keypoint_processor_config: Dict,
+                 class_weights_config: Dict, # Added class_weights_config
                  is_train: bool = True,
                  sequence_length: int = 100, # Fixed sequence length for now, will pad/truncate
                  split_subjects: List[str] = None):
@@ -28,6 +29,7 @@ class SquatFormDataset(Dataset):
                                                 data_dir/subject_metadata.csv (subject_id, skin_tone, body_type, etc.)
             label_map (Dict[str, int]): Mapping from string labels to integer IDs.
             keypoint_processor_config (Dict): Configuration for KeypointProcessor.
+            class_weights_config (Dict): Configuration for class weights.
             is_train (bool): Whether this is a training dataset (enables augmentation).
             sequence_length (int): Desired fixed length for all sequences.
             split_subjects (List[str]): List of subject IDs to include in this dataset split.
@@ -37,6 +39,7 @@ class SquatFormDataset(Dataset):
         self.is_train = is_train
         self.sequence_length = sequence_length
         self.keypoint_processor = KeypointProcessor(keypoint_processor_config)
+        self.class_weights_config = class_weights_config # Store class weights config
 
         self.metadata = self._load_metadata(split_subjects)
         self.class_weights = self._calculate_class_weights()
@@ -74,7 +77,7 @@ class SquatFormDataset(Dataset):
 
     def _calculate_class_weights(self) -> torch.Tensor:
         """Calculates inverse frequency class weights for handling imbalance."""
-        if not self.keypoint_processor.config.class_weights.enabled:
+        if not self.class_weights_config.enabled: # Use the directly passed config
             return None
 
         class_counts = self.metadata['label'].value_counts()
@@ -213,6 +216,7 @@ class SquatFormDatamodule:
             data_dir=self.data_dir,
             label_map=self.label_map,
             keypoint_processor_config=self.config.data.augmentations,
+            class_weights_config=self.config.data.class_weights, # Pass class_weights_config
             is_train=True,
             split_subjects=train_subjects
         )
@@ -220,6 +224,7 @@ class SquatFormDatamodule:
             data_dir=self.data_dir,
             label_map=self.label_map,
             keypoint_processor_config=self.config.data.augmentations,
+            class_weights_config=self.config.data.class_weights, # Pass class_weights_config
             is_train=False,
             split_subjects=val_subjects
         )
@@ -227,6 +232,7 @@ class SquatFormDatamodule:
             data_dir=self.data_dir,
             label_map=self.label_map,
             keypoint_processor_config=self.config.data.augmentations,
+            class_weights_config=self.config.data.class_weights, # Pass class_weights_config
             is_train=False,
             split_subjects=test_subjects
         )

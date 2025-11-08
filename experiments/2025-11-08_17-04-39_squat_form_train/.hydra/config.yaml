@@ -1,0 +1,133 @@
+data:
+  name: squat_form_dataset
+  dataset_dir: ${paths.data_dir}/processed/squat_form
+  batch_size: 32
+  num_workers: ${num_workers}
+  pin_memory: true
+  train_split_ratio: 0.7
+  val_split_ratio: 0.15
+  test_split_ratio: 0.15
+  split_strategy: subject_stratified
+  augmentations:
+    enabled: true
+    normalization:
+      enabled: true
+      method: hip_to_shoulder_distance
+    noise:
+      enabled: true
+      std_dev: 0.01
+    dropout:
+      enabled: true
+      rate: 0.05
+    masking:
+      enabled: true
+      max_mask_length: 5
+  class_weights:
+    enabled: true
+model:
+  name: form_classifier
+  _target_: src.models.form_classifier.FormClassifier
+  pose_estimator:
+    name: mediapipe_blazepose
+    num_keypoints: 33
+  classifier:
+    type: TCN
+    input_dim: 99
+    num_classes: 5
+    hidden_dims:
+    - 128
+    - 256
+    kernel_size: 5
+    num_layers: 3
+    dropout: 0.2
+    bidirectional: false
+  loss:
+    _target_: torch.nn.CrossEntropyLoss
+    weight: null
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: 0.001
+    weight_decay: 0.01
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    mode: min
+    factor: 0.5
+    patience: 5
+    verbose: true
+  mixed_precision:
+    enabled: true
+    dtype: bf16
+train:
+  epochs: 50
+  early_stopping:
+    enabled: true
+    patience: 10
+    monitor: val_loss
+    mode: min
+  gradient_clipping:
+    enabled: true
+    clip_value: 1.0
+  checkpointing:
+    save_best_only: true
+    monitor: val_loss
+    mode: min
+    filename: best_model.pt
+  resume_from_checkpoint: null
+  ddp:
+    enabled: false
+    backend: nccl
+  accumulate_grad_batches: 1
+  tracker:
+    log_model: true
+    log_every_n_steps: 50
+eval:
+  metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1_score
+  - confusion_matrix
+  - classification_report
+  confidence_threshold: 0.9
+  sliced_evaluation:
+    enabled: true
+    slices:
+    - name: skin_tone
+      attribute: subject_metadata.skin_tone
+    - name: body_type
+      attribute: subject_metadata.body_type
+    - name: lighting_condition
+      attribute: video_metadata.lighting
+    - name: clothing_type
+      attribute: video_metadata.clothing
+    - name: camera_angle
+      attribute: video_metadata.camera_angle
+  report:
+    enabled: true
+    format: html
+    output_path: ${paths.output_dir}/evaluation_report.${eval.report.format}
+export:
+  format: onnx
+  output_path: ${paths.model_dir}/squat_form_model.${export.format}
+  input_shape:
+  - 1
+  - 100
+  - 99
+  quantization:
+    enabled: false
+project_name: the_iron_utility_squat
+run_name: ${now:%Y-%m-%d_%H-%M-%S}_squat_form_train
+experiment_tracker: mlflow
+seed: 42
+paths:
+  data_dir: ${oc.env:DATA_DIR, data/}
+  output_dir: ${oc.env:OUTPUT_DIR, experiments/${run_name}}
+  log_dir: ${paths.output_dir}/logs
+  checkpoint_dir: ${paths.output_dir}/checkpoints
+  model_dir: ${paths.output_dir}/models
+cuda: true
+gpu_ids:
+- 0
+num_workers: 4
+log_interval: 100
+save_interval: 1
