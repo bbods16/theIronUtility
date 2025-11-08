@@ -1,11 +1,12 @@
 import torch
 import numpy as np
+from typing import Any
 
 class KeypointProcessor:
     """
     Handles normalization and augmentation of keypoint sequences.
     """
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         # config here is expected to be the 'augmentations' part of the overall config
         self.config = config
 

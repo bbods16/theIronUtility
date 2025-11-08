@@ -9,16 +9,17 @@ import numpy as np
 from src.train.trainer import SquatFormTrainer
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def export_model(cfg: DictConfig):
+def export_model(cfg: DictConfig) -> None:
     print("Starting model export...")
     print(OmegaConf.to_yaml(cfg))
 
     # --- Load Model ---
-    if not cfg.checkpoint_path:
+    checkpoint_path = cfg.get('checkpoint_path', None)
+    if not checkpoint_path:
         raise ValueError("Please provide a 'checkpoint_path' in the config or as a CLI argument to load the model.")
 
-    print(f"Loading model from checkpoint: {cfg.checkpoint_path}")
-    model = SquatFormTrainer.load_from_checkpoint(cfg.checkpoint_path, config=cfg)
+    print(f"Loading model from checkpoint: {checkpoint_path}")
+    model = SquatFormTrainer.load_from_checkpoint(checkpoint_path, config=cfg, class_weights=None)
     model.eval() # Set model to evaluation mode
     model.freeze() # Freeze model parameters
 

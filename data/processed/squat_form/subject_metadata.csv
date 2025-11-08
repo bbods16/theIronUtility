@@ -1,6 +1,6 @@
 subject_id,skin_tone,body_type,age,gender
-subject_000,Monk_1,athletic,23,female
-subject_001,Monk_6,athletic,25,non-binary
-subject_002,Monk_3,heavy,45,female
-subject_003,Monk_4,athletic,42,male
-subject_004,Monk_2,athletic,58,female
+subject_000,Monk_2,athletic,52,female
+subject_001,Monk_1,average,31,non-binary
+subject_002,Monk_2,average,48,non-binary
+subject_003,Monk_3,average,25,male
+subject_004,Monk_1,heavy,59,non-binary

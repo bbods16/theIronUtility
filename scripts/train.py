@@ -5,12 +5,13 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Learning
 from pytorch_lightning.loggers import MLFlowLogger
 import torch
 import os
+from pathlib import Path
 
 from src.data.datasets import SquatFormDatamodule
 from src.train.trainer import SquatFormTrainer
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def train(cfg: DictConfig):
+def train(cfg: DictConfig) -> None:
     # Print configuration
     print(OmegaConf.to_yaml(cfg))
 
@@ -58,25 +59,21 @@ def train(cfg: DictConfig):
 
     # --- Logger ---
     if cfg.experiment_tracker == "mlflow":
-        # Ensure the MLflow tracking URI is set if not already
-        if "MLFLOW_TRACKING_URI" not in os.environ:
-            # Set MLFLOW_TRACKING_URI to a dedicated 'mlruns' directory at the project root
-            # This is where MLflow will store its tracking database and experiment metadata
-            project_root = os.getcwd() # Get the current working directory (project root)
-            mlflow_tracking_uri = os.path.join(project_root, "mlruns_tracking") # Use a distinct name
-            os.makedirs(mlflow_tracking_uri, exist_ok=True)
-            os.environ["MLFLOW_TRACKING_URI"] = f"file://{mlflow_tracking_uri}"
-            print(f"MLFLOW_TRACKING_URI set to: {os.environ['MLFLOW_TRACKING_URI']}")
+        # Use the original working directory (before Hydra changes it)
+        original_cwd = hydra.utils.get_original_cwd()
+        mlflow_tracking_dir = Path(original_cwd) / "mlruns"
+        mlflow_tracking_dir.mkdir(exist_ok=True)
+
+        # Convert to URI using pathlib's as_uri() method (works cross-platform)
+        mlflow_tracking_uri = mlflow_tracking_dir.as_uri()
 
         mlflow_logger = MLFlowLogger(
             experiment_name=cfg.project_name,
             run_name=cfg.run_name,
-            save_dir=cfg.paths.output_dir, # This is where run artifacts (checkpoints, etc.) will be saved
+            tracking_uri=mlflow_tracking_uri,
             log_model=cfg.train.tracker.log_model,
-            # We don't pass tags or params here, as Lightning handles it
         )
-        # Log hyperparameters to MLflow using the logger's API
-        mlflow_logger.log_hyperparams(OmegaConf.to_container(cfg, resolve=True))
+        print(f"MLflow tracking URI: {mlflow_tracking_uri}")
     else:
         mlflow_logger = None # Or configure other loggers like WandbLogger
 

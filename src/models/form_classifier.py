@@ -1,22 +1,22 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List
+from typing import List, Dict, Any, Optional
 
 class Chomp1d(nn.Module):
     """
     Custom module to remove padding from the end of a sequence.
     Used in TCNs to ensure causality.
     """
-    def __init__(self, chomp_size):
+    def __init__(self, chomp_size: int) -> None:
         super(Chomp1d, self).__init__()
         self.chomp_size = chomp_size
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x[:, :, :-self.chomp_size].contiguous()
 
 class TemporalBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, dropout):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int, dilation: int, padding: int, dropout: float) -> None:
         super(TemporalBlock, self).__init__()
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size,
                                stride=stride, padding=padding, dilation=dilation)
@@ -36,13 +36,13 @@ class TemporalBlock(nn.Module):
         self.relu = nn.ReLU()
         self.init_weights()
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         self.conv1.weight.data.normal_(0, 0.01)
         self.conv2.weight.data.normal_(0, 0.01)
         if self.downsample is not None:
             self.downsample.weight.data.normal_(0, 0.01)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.net(x)
         res = x if self.downsample is None else self.downsample(x)
         return self.relu(out + res)
@@ -52,7 +52,7 @@ class TemporalConvolutionalNetwork(nn.Module):
     Temporal Convolutional Network (TCN) for sequence classification.
     """
     def __init__(self, input_dim: int, num_classes: int, hidden_dims: List[int],
-                 kernel_size: int, num_layers: int, dropout: float):
+                 kernel_size: int, num_layers: int, dropout: float) -> None:
         super(TemporalConvolutionalNetwork, self).__init__()
 
         layers = []
@@ -69,7 +69,7 @@ class TemporalConvolutionalNetwork(nn.Module):
         self.tcn = nn.Sequential(*layers)
         self.fc = nn.Linear(hidden_dims[-1], num_classes) # Final FC layer
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x shape: (batch_size, sequence_length, input_dim)
         # TCN expects (batch_size, input_dim, sequence_length)
         x = x.transpose(1, 2)
@@ -89,7 +89,7 @@ class FormClassifier(nn.Module):
     """
     Wrapper for the Form Classification model, integrating the TCN.
     """
-    def __init__(self, classifier: dict, num_classes: int, input_dim: int):
+    def __init__(self, classifier: Dict[str, Any], num_classes: int, input_dim: int) -> None:
         super(FormClassifier, self).__init__()
         self.num_classes = num_classes
         self.input_dim = input_dim
@@ -110,5 +110,5 @@ class FormClassifier(nn.Module):
         else:
             raise ValueError(f"Unsupported classifier type: {classifier['type']}")
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)

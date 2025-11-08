@@ -6,13 +6,14 @@ import os
 import numpy as np
 import pandas as pd
 import mlflow
+from pathlib import Path
 
 from src.data.datasets import SquatFormDatamodule
 from src.train.trainer import SquatFormTrainer
 from src.eval.metrics import compute_classification_metrics, plot_confusion_matrix, generate_html_report
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def evaluate(cfg: DictConfig):
+def evaluate(cfg: DictConfig) -> None:
     print("Starting model evaluation...")
     print(OmegaConf.to_yaml(cfg))
 
@@ -25,11 +26,14 @@ def evaluate(cfg: DictConfig):
 
     # --- Load Model ---
     # Expecting a checkpoint path to be provided in the config or as CLI arg
-    if not cfg.checkpoint_path:
+    checkpoint_path = cfg.get('checkpoint_path', None)
+    if not checkpoint_path:
         raise ValueError("Please provide a 'checkpoint_path' in the config or as a CLI argument.")
 
-    print(f"Loading model from checkpoint: {cfg.checkpoint_path}")
-    model = SquatFormTrainer.load_from_checkpoint(cfg.checkpoint_path, config=cfg)
+    print(f"Loading model from checkpoint: {checkpoint_path}")
+    # Get class weights from datamodule
+    class_weights = datamodule.class_weights
+    model = SquatFormTrainer.load_from_checkpoint(checkpoint_path, config=cfg, class_weights=class_weights)
     model.eval() # Set model to evaluation mode
     model.freeze() # Freeze model parameters
 
@@ -49,18 +53,12 @@ def evaluate(cfg: DictConfig):
     all_labels = model.all_test_labels.cpu().numpy()
     # all_logits = model.all_test_logits.cpu().numpy() # Not directly used for metrics, but available
 
-    # Collect all metadata
+    # Collect all metadata directly from the test dataset
     all_metadata = []
-    for batch_idx, batch in enumerate(datamodule.test_dataloader()):
-        # batch contains (keypoints_tensor, label_tensor, item_metadata)
-        # We need to convert item_metadata (dict of lists) to list of dicts
-        batch_metadata = batch[2]
-        # Assuming all metadata fields are lists of same length as batch_size
-        num_items_in_batch = len(batch_metadata[list(batch_metadata.keys())[0]])
-        for i in range(num_items_in_batch):
-            item_dict = {k: v[i] for k, v in batch_metadata.items()}
-            all_metadata.append(item_dict)
-    
+    for idx in range(len(datamodule.test_dataset)):
+        _, _, item_metadata = datamodule.test_dataset[idx]
+        all_metadata.append(item_metadata)
+
     # Convert list of dicts to DataFrame for easier slicing
     metadata_df = pd.DataFrame(all_metadata)
 
@@ -68,12 +66,15 @@ def evaluate(cfg: DictConfig):
 
     # --- MLflow Logging Setup ---
     if cfg.experiment_tracker == "mlflow":
-        # Ensure the MLflow tracking URI is set if not already
-        if "MLFLOW_TRACKING_URI" not in os.environ:
-            mlflow_tracking_uri = os.path.join(cfg.paths.output_dir, "mlruns")
-            os.makedirs(mlflow_tracking_uri, exist_ok=True)
-            os.environ["MLFLOW_TRACKING_URI"] = f"file://{mlflow_tracking_uri}"
-            print(f"MLFLOW_TRACKING_URI set to: {os.environ['MLFLOW_TRACKING_URI']}")
+        # Use the original working directory (before Hydra changes it)
+        original_cwd = hydra.utils.get_original_cwd()
+        mlflow_tracking_dir = Path(original_cwd) / "mlruns"
+        mlflow_tracking_dir.mkdir(exist_ok=True)
+
+        # Convert to URI and set tracking URI
+        mlflow_tracking_uri = mlflow_tracking_dir.as_uri()
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+        print(f"MLflow tracking URI: {mlflow_tracking_uri}")
 
         # Start an MLflow run for evaluation
         with mlflow.start_run(run_name=f"evaluation_{cfg.run_name}", nested=True) as run:
@@ -106,13 +107,17 @@ def evaluate(cfg: DictConfig):
             if cfg.eval.sliced_evaluation.enabled and not metadata_df.empty:
                 print("Performing sliced evaluation...")
                 for slice_config in cfg.eval.sliced_evaluation.slices:
+                    # Handle both simple attributes (e.g., 'skin_tone') and nested (e.g., 'subject_metadata.skin_tone')
                     slice_attribute = slice_config.attribute
-                    if slice_attribute in metadata_df.columns:
+                    # Extract the last part if it's a nested attribute
+                    attribute_name = slice_attribute.split('.')[-1] if '.' in slice_attribute else slice_attribute
+
+                    if attribute_name in metadata_df.columns:
                         sliced_metrics_results[slice_attribute] = {}
-                        unique_categories = metadata_df[slice_attribute].unique()
+                        unique_categories = metadata_df[attribute_name].unique()
                         for category in unique_categories:
                             print(f"  Evaluating slice: {slice_attribute}={category}")
-                            slice_indices = metadata_df[metadata_df[slice_attribute] == category].index.values
+                            slice_indices = metadata_df[metadata_df[attribute_name] == category].index.values
                             
                             if len(slice_indices) > 0:
                                 slice_preds = all_preds[slice_indices]
@@ -158,12 +163,16 @@ def evaluate(cfg: DictConfig):
         sliced_metrics_results = {}
         if cfg.eval.sliced_evaluation.enabled and not metadata_df.empty:
             for slice_config in cfg.eval.sliced_evaluation.slices:
+                # Handle both simple attributes (e.g., 'skin_tone') and nested (e.g., 'subject_metadata.skin_tone')
                 slice_attribute = slice_config.attribute
-                if slice_attribute in metadata_df.columns:
+                # Extract the last part if it's a nested attribute
+                attribute_name = slice_attribute.split('.')[-1] if '.' in slice_attribute else slice_attribute
+
+                if attribute_name in metadata_df.columns:
                     sliced_metrics_results[slice_attribute] = {}
-                    unique_categories = metadata_df[slice_attribute].unique()
+                    unique_categories = metadata_df[attribute_name].unique()
                     for category in unique_categories:
-                        slice_indices = metadata_df[metadata_df[slice_attribute] == category].index.values
+                        slice_indices = metadata_df[metadata_df[attribute_name] == category].index.values
                         if len(slice_indices) > 0:
                             slice_preds = all_preds[slice_indices]
                             slice_labels = all_labels[slice_indices]

@@ -9,6 +9,8 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import Dict, List, Any
+import json
+import os
 
 def compute_classification_metrics(
     preds: np.ndarray, labels: np.ndarray, class_names: List[str]
@@ -211,5 +213,3 @@ def generate_html_report(
     </html>
     """
     return html_content
-
-import json # Import json for classification report pretty printing

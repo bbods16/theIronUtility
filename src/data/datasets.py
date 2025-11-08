@@ -3,8 +3,9 @@ from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
 import os
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 from sklearn.model_selection import train_test_split # Import for internal split fallback
+import pytorch_lightning as pl
 
 from src.data.components import KeypointProcessor
 
@@ -16,11 +17,11 @@ class SquatFormDataset(Dataset):
     def __init__(self,
                  data_dir: str,
                  label_map: Dict[str, int],
-                 keypoint_processor_config: Dict,
-                 class_weights_config: Dict, # Added class_weights_config
+                 keypoint_processor_config: Dict[str, Any],
+                 class_weights_config: Dict[str, Any],
                  is_train: bool = True,
                  sequence_length: int = 100, # Fixed sequence length for now, will pad/truncate
-                 split_subjects: List[str] = None):
+                 split_subjects: Optional[List[str]] = None) -> None:
         """
         Args:
             data_dir (str): Path to the directory containing processed keypoint data.
@@ -75,7 +76,7 @@ class SquatFormDataset(Dataset):
         )
         return metadata
 
-    def _calculate_class_weights(self) -> torch.Tensor:
+    def _calculate_class_weights(self) -> Optional[torch.Tensor]:
         """Calculates inverse frequency class weights for handling imbalance."""
         if not self.class_weights_config.enabled: # Use the directly passed config
             return None
@@ -130,12 +131,13 @@ class SquatFormDataset(Dataset):
 
         return keypoints_tensor, label_tensor, item_metadata
 
-class SquatFormDatamodule:
+class SquatFormDatamodule(pl.LightningDataModule):
     """
     PyTorch Lightning DataModule for Squat Form Classification.
     Handles data loading, splitting, and DataLoader creation.
     """
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__()
         self.config = config
         self.data_dir = os.path.join(config.paths.data_dir, "processed", "squat_form") # Corrected path
         self.split_dir = os.path.join(config.paths.data_dir, "splits") # New: path to splits
@@ -159,14 +161,14 @@ class SquatFormDatamodule:
         self.test_dataset = None
         self.class_weights = None
 
-    def _load_subjects_from_file(self, file_path: str) -> List[str]:
+    def _load_subjects_from_file(self, file_path: str) -> Optional[List[str]]:
         """Helper to load subject IDs from a text file."""
         if os.path.exists(file_path):
             with open(file_path, 'r') as f:
                 return [line.strip() for line in f if line.strip()]
         return None
 
-    def setup(self, stage: str = None):
+    def setup(self, stage: Optional[str] = None) -> None:
         """
         Loads and splits the dataset.
         Prioritizes loading pre-defined splits from files.

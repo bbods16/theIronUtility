@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from src.data.components import KeypointProcessor
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def prepare_data(cfg: DictConfig):
+def prepare_data(cfg: DictConfig) -> None:
     """
     This script prepares the squat form analysis dataset.
     It simulates raw keypoint data, processes it using KeypointProcessor,
@@ -78,13 +78,9 @@ def prepare_data(cfg: DictConfig):
     print(f"Generated subject metadata at {subject_metadata_path}.")
 
 
-    # --- 2. Process Raw Keypoints using KeypointProcessor ---
-    print("Processing raw keypoints...")
-    keypoint_processor = KeypointProcessor(cfg.data.augmentations) # Pass augmentations config
-    
-    # Ensure augmentations are disabled for processing step, only normalization should apply
-    # Augmentations are applied during training by the dataset
-    keypoint_processor.config.enabled = False 
+    # --- 2. Copy Raw Keypoints to Processed Directory ---
+    # We don't pre-process keypoints here - the dataset will handle normalization and augmentation
+    print("Copying raw keypoints to processed directory...")
 
     all_processed_labels = []
     for _, row in raw_labels_df.iterrows():
@@ -92,10 +88,8 @@ def prepare_data(cfg: DictConfig):
         processed_keypoint_path = os.path.join(processed_data_dir, row['subject_id'], f"{row['clip_id']}.npy")
 
         raw_kps = np.load(raw_keypoint_path)
-        # Process keypoints (normalization only, no augmentation here)
-        processed_kps = keypoint_processor.process(raw_kps, is_train=False) # is_train=False to disable augmentation
-
-        np.save(processed_keypoint_path, processed_kps)
+        # Save raw keypoints to processed directory - dataset will handle processing
+        np.save(processed_keypoint_path, raw_kps)
         all_processed_labels.append(row.to_dict()) # Keep original label and IDs
 
     processed_labels_df = pd.DataFrame(all_processed_labels)

@@ -3,7 +3,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchmetrics import Accuracy, Precision, Recall, F1Score, MetricCollection
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 from src.models.form_classifier import FormClassifier
 
@@ -12,9 +12,9 @@ class SquatFormTrainer(pl.LightningModule):
     PyTorch Lightning module for training the Squat Form Classifier.
     Handles model definition, loss, optimizer, metrics, and training loop.
     """
-    def __init__(self, config: Dict[str, Any], class_weights: torch.Tensor = None):
+    def __init__(self, config: Dict[str, Any], class_weights: Optional[torch.Tensor] = None) -> None:
         super().__init__()
-        self.save_hyperparameters(config)
+        self.save_hyperparameters(ignore=['class_weights'])
         self.config = config
 
         # Model
@@ -53,8 +53,8 @@ class SquatFormTrainer(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
-    def _step(self, batch: Any, batch_idx: int, stage: str):
-        x, y = batch
+    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]], batch_idx: int, stage: str) -> torch.Tensor:
+        x, y, _ = batch  # Unpack metadata as well but don't use it
         logits = self(x)
         loss = self.loss_fn(logits, y)
         preds = torch.argmax(logits, dim=1)
@@ -78,16 +78,16 @@ class SquatFormTrainer(pl.LightningModule):
 
         return loss
 
-    def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]], batch_idx: int) -> torch.Tensor:
         return self._step(batch, batch_idx, 'train')
 
-    def validation_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]], batch_idx: int) -> torch.Tensor:
         return self._step(batch, batch_idx, 'val')
 
-    def test_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]], batch_idx: int) -> torch.Tensor:
         return self._step(batch, batch_idx, 'test')
 
-    def on_test_epoch_end(self):
+    def on_test_epoch_end(self) -> None:
         # Concatenate all predictions and labels from the test epoch
         all_preds = torch.cat(self.test_preds)
         all_labels = torch.cat(self.test_labels)
@@ -98,12 +98,12 @@ class SquatFormTrainer(pl.LightningModule):
         self.test_labels.clear()
         self.test_logits.clear()
 
-        # Make these available as attributes for external access (e.e.g., by evaluate.py)
+        # Make these available as attributes for external access (e.g., by evaluate.py)
         self.all_test_preds = all_preds
         self.all_test_labels = all_labels
         self.all_test_logits = all_logits
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_cfg = self.config.model.optimizer
         optimizer = torch.optim.AdamW(
             self.parameters(),
