@@ -3,44 +3,638 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>The Iron Utility – AI Fitness Coach</title>
+  <title>🎩 IRON UTILITY MONOPOLY - Build Your Fitness Empire! 🎩</title>
+
+  <!-- Monopoly Theme Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@700&family=Fredoka+One&display=swap" rel="stylesheet">
+
   <!-- Bootstrap CSS -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-    rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+
   <!-- MediaPipe Pose Tasks (Pose Landmarker) -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js"
-    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" crossorigin="anonymous"></script>
+
   <style>
-    /* ... (styles remain the same) */
+    :root {
+      --monopoly-red: #E2231A;
+      --monopoly-green: #1FB25A;
+      --monopoly-blue: #0072BB;
+      --monopoly-yellow: #FEF200;
+      --monopoly-orange: #F7941D;
+      --monopoly-dark: #000;
+      --monopoly-gold: #FFD700;
+      --monopoly-cream: #F0E68C;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Fredoka One', cursive;
+      background: linear-gradient(135deg, var(--monopoly-cream) 0%, #fff 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Monopoly Board Background Pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(0,0,0,0.03) 50px, rgba(0,0,0,0.03) 51px),
+        repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(0,0,0,0.03) 50px, rgba(0,0,0,0.03) 51px);
+      z-index: -1;
+    }
+
+    /* Header */
+    .monopoly-header {
+      background: var(--monopoly-red);
+      color: white;
+      text-align: center;
+      padding: 20px;
+      border-bottom: 8px solid var(--monopoly-dark);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .main-title {
+      font-size: 3rem;
+      text-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+      margin: 0;
+      letter-spacing: 2px;
+    }
+
+    .subtitle-banner {
+      background: var(--monopoly-yellow);
+      color: var(--monopoly-dark);
+      padding: 10px;
+      margin-top: 15px;
+      border: 4px solid var(--monopoly-dark);
+      border-radius: 10px;
+      font-size: 1.2rem;
+    }
+
+    /* Main Container */
+    .game-container {
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    /* Video Container - Property Card Style */
+    .video-property-card {
+      background: white;
+      border: 6px solid var(--monopoly-dark);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    .property-header {
+      background: var(--monopoly-green);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+      border: 4px solid var(--monopoly-dark);
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    #videoContainer {
+      position: relative;
+      background: var(--monopoly-dark);
+      border: 5px solid var(--monopoly-green);
+      border-radius: 15px;
+      overflow: hidden;
+      min-height: 480px;
+    }
+
+    #videoElement {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+
+    #outputCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #1a1a1a;
+    }
+
+    /* Controls Panel - Chance Card Style */
+    .controls-card {
+      background: linear-gradient(135deg, #fff 0%, var(--monopoly-cream) 100%);
+      border: 6px solid var(--monopoly-orange);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    .chance-header {
+      background: var(--monopoly-orange);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+      border: 4px solid var(--monopoly-dark);
+    }
+
+    /* Monopoly Buttons */
+    .monopoly-btn {
+      background: var(--monopoly-red);
+      color: white;
+      border: 4px solid var(--monopoly-dark);
+      border-radius: 15px;
+      padding: 15px 30px;
+      font-size: 1.2rem;
+      font-family: 'Fredoka One', cursive;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 6px 0 var(--monopoly-dark);
+      position: relative;
+      text-transform: uppercase;
+    }
+
+    .monopoly-btn:hover {
+      transform: translateY(2px);
+      box-shadow: 0 4px 0 var(--monopoly-dark);
+    }
+
+    .monopoly-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 var(--monopoly-dark);
+    }
+
+    .monopoly-btn-green {
+      background: var(--monopoly-green);
+    }
+
+    .monopoly-btn-blue {
+      background: var(--monopoly-blue);
+    }
+
+    /* Stats Board - Railroad Card Style */
+    .stats-board {
+      background: white;
+      border: 6px solid var(--monopoly-dark);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+      margin-bottom: 30px;
+    }
+
+    .railroad-header {
+      background: var(--monopoly-dark);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
+    }
+
+    .stat-item {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border: 3px solid var(--monopoly-dark);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stat-label {
+      font-size: 1.1rem;
+      color: var(--monopoly-dark);
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      color: var(--monopoly-green);
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+
+    /* Exercise Select */
+    .exercise-select {
+      background: white;
+      border: 4px solid var(--monopoly-dark);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.1rem;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    /* Money Display */
+    .money-display {
+      background: var(--monopoly-green);
+      color: white;
+      border: 5px solid var(--monopoly-dark);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      font-size: 2rem;
+      margin: 20px 0;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+
+    /* Footer - Board Spaces */
+    .monopoly-footer {
+      background: var(--monopoly-dark);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      margin-top: 50px;
+      border-top: 8px solid var(--monopoly-red);
+    }
+
+    .footer-spaces {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    .board-space {
+      background: var(--monopoly-cream);
+      color: var(--monopoly-dark);
+      border: 3px solid var(--monopoly-dark);
+      border-radius: 8px;
+      padding: 10px 15px;
+      font-size: 0.9rem;
+      min-width: 80px;
+    }
+
+    /* Dice Animation */
+    @keyframes rollDice {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(90deg); }
+      50% { transform: rotate(180deg); }
+      75% { transform: rotate(270deg); }
+    }
+
+    .rolling {
+      animation: rollDice 0.5s ease-in-out;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .main-title {
+        font-size: 2rem;
+      }
+
+      .subtitle-banner {
+        font-size: 1rem;
+      }
+    }
   </style>
 </head>
-<body class="bg-light">
+<body>
 
-<div class="container-fluid py-3">
-  <div class="row">
-    <!-- Left Column: Video Feed -->
-    <div class="col-md-6">
-      <div class="video-container ratio ratio-4x3" id="videoContainer">
-        <!-- ... (video elements remain the same) -->
-      </div>
+  <!-- TOP BANNER -->
+  <header class="monopoly-header">
+    <h1 class="main-title">
+      🎩 IRON UTILITY MONOPOLY 💰
+    </h1>
+    <div class="subtitle-banner">
+      🎲 Pass GO, Collect Perfect Squat Form! 🎲
     </div>
-    <!-- Right Column: UI -->
-    <div class="col-md-6 d-flex flex-column">
-      <div class="mb-3">
-        <label for="exerciseSelect" class="form-label">Choose Exercise:</label>
-        <select id="exerciseSelect" class="form-select">
-          <option value="squat">Squat</option>
-          <option value="bicep_curl">Bicep Curl</option>
-        </select>
+  </header>
+
+  <!-- MAIN GAME CONTAINER -->
+  <div class="game-container">
+    <div class="row">
+
+      <!-- LEFT COLUMN: Video Feed -->
+      <div class="col-lg-8 mb-4">
+        <div class="video-property-card">
+          <div class="property-header">
+            🎥 LIVE WORKOUT STATION 🎥
+          </div>
+
+          <div id="videoContainer">
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="outputCanvas"></canvas>
+          </div>
+        </div>
       </div>
-      <!-- ... (rest of the UI remains the same) -->
+
+      <!-- RIGHT COLUMN: Controls & Stats -->
+      <div class="col-lg-4">
+
+        <!-- Exercise Selection -->
+        <div class="controls-card">
+          <div class="chance-header">
+            🎴 SELECT YOUR EXERCISE 🎴
+          </div>
+
+          <select id="exerciseSelect" class="exercise-select">
+            <option value="squat">🏋️ Squat</option>
+            <option value="bicep_curl">💪 Bicep Curl</option>
+          </select>
+
+          <button id="startButton" class="monopoly-btn w-100 mb-3">
+            🎲 Start Workout 🎲
+          </button>
+
+          <button id="finishButton" class="monopoly-btn monopoly-btn-green w-100 mb-3" style="display: none;">
+            ✓ Finish Session ✓
+          </button>
+
+          <button id="coachButton" class="monopoly-btn monopoly-btn-blue w-100" style="display: none;">
+            🎩 Get AI Coaching 🎩
+          </button>
+        </div>
+
+        <!-- Stats Board -->
+        <div class="stats-board">
+          <div class="railroad-header">
+            🚂 WORKOUT STATS 🚂
+          </div>
+
+          <div class="stat-item">
+            <span class="stat-label">Rep Count:</span>
+            <span class="stat-value" id="repCount">0</span>
+          </div>
+
+          <div class="stat-item">
+            <span class="stat-label">Form Score:</span>
+            <span class="stat-value" id="formScore">0</span>
+          </div>
+
+          <div class="money-display">
+            💰 $<span id="moneyEarned">0</span> 💰
+          </div>
+
+          <div class="stat-item">
+            <span class="stat-label">Current Exercise:</span>
+            <span class="stat-value" id="currentExercise">Squat</span>
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
-</div>
 
-<!-- ... (modal and scripts remain the same) -->
+  <!-- FOOTER -->
+  <footer class="monopoly-footer">
+    <div class="footer-spaces">
+      <div class="board-space">🏠 GO</div>
+      <div class="board-space">📏 Depth Plaza</div>
+      <div class="board-space">⚠️ Knee Valgus Ave</div>
+      <div class="board-space">🦴 Spinal Street</div>
+      <div class="board-space">🚂 Gains Railroad</div>
+      <div class="board-space">💎 Luxury Tax</div>
+      <div class="board-space">🏨 Form Hotel</div>
+    </div>
+    <div>
+      🎲 Powered by AI Form Analysis Engine | Build Your Fitness Empire! 🏆
+    </div>
+  </footer>
 
+  <!-- Scripts -->
+  <script type="module">
+    // Import modules
+    import { setupCamera, stopCamera } from './media.js';
+    import { calculateAngle } from './utils.js';
+    import { checkErrors } from './formChecker.js';
+    import { RepCounter } from './RepCounter.js';
+    import { ErrorDetector } from './ErrorDetector.js';
+    import * as UIManager from './UIManager.js';
+
+    // Initialize pose model variables
+    let poseLandmarker = null;
+    let lastVideoTime = -1;
+    let isActive = false;
+    let currentExercise = 'squat';
+
+    const videoElement = document.getElementById('videoElement');
+    const canvasElement = document.getElementById('outputCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    const startButton = document.getElementById('startButton');
+    const finishButton = document.getElementById('finishButton');
+    const coachButton = document.getElementById('coachButton');
+    const exerciseSelect = document.getElementById('exerciseSelect');
+
+    // Stats elements
+    const repCountEl = document.getElementById('repCount');
+    const formScoreEl = document.getElementById('formScore');
+    const moneyEarnedEl = document.getElementById('moneyEarned');
+    const currentExerciseEl = document.getElementById('currentExercise');
+
+    // Initialize rep counter and error detector
+    const repCounter = new RepCounter();
+    const errorDetector = new ErrorDetector();
+
+    let totalMoney = 0;
+    let sessionScore = 0;
+
+    // Load the pose model
+    async function loadPoseModel() {
+      const vision = await window.vision;
+      poseLandmarker = await vision.PoseLandmarker.createFromOptions({
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      console.log('🎩 Pose model loaded! Ready to build your fitness empire!');
+    }
+
+    // Main prediction loop
+    async function processFrame() {
+      if (!isActive) return;
+
+      const currentTime = performance.now();
+
+      if (videoElement.readyState >= 2) {
+        const result = poseLandmarker.detectForVideo(videoElement, currentTime);
+
+        // Draw video frame to canvas
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+        if (result.landmarks && result.landmarks.length > 0) {
+          const landmarks = result.landmarks[0];
+          drawSkeleton(landmarks);
+
+          const errors = checkErrors(landmarks, currentExercise);
+          errorDetector.recordFrameErrors(errors);
+
+          const repCompleted = repCounter.update(landmarks, currentExercise);
+          if (repCompleted) {
+            const repErrors = errorDetector.getMostCommonErrors();
+            const isGoodRep = repErrors.length === 0;
+
+            if (isGoodRep) {
+              totalMoney += 200; // Pass GO!
+              sessionScore += 100;
+              showMonopolyToast('🎉 Perfect Rep! Collect $200!', 'success');
+            } else {
+              totalMoney -= 50; // Pay rent!
+              showMonopolyToast('⚠️ Form errors detected!', 'warning');
+            }
+
+            // Update UI
+            repCountEl.textContent = repCounter.count;
+            formScoreEl.textContent = sessionScore;
+            moneyEarnedEl.textContent = totalMoney;
+
+            errorDetector.reset();
+          }
+        }
+      }
+
+      requestAnimationFrame(processFrame);
+    }
+
+    // Draw skeleton on canvas
+    function drawSkeleton(landmarks) {
+      const connections = [
+        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Upper body
+        [11, 23], [12, 24], [23, 24], // Torso
+        [23, 25], [25, 27], [27, 29], [29, 31], // Left leg
+        [24, 26], [26, 28], [28, 30], [30, 32]  // Right leg
+      ];
+
+      // Draw connections
+      canvasCtx.strokeStyle = '#00FF00';
+      canvasCtx.lineWidth = 4;
+      connections.forEach(([start, end]) => {
+        const startLM = landmarks[start];
+        const endLM = landmarks[end];
+        if (startLM && endLM) {
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(startLM.x * canvasElement.width, startLM.y * canvasElement.height);
+          canvasCtx.lineTo(endLM.x * canvasElement.width, endLM.y * canvasElement.height);
+          canvasCtx.stroke();
+        }
+      });
+
+      // Draw landmarks
+      landmarks.forEach((lm, i) => {
+        canvasCtx.fillStyle = '#FF0000';
+        canvasCtx.beginPath();
+        canvasCtx.arc(lm.x * canvasElement.width, lm.y * canvasElement.height, 6, 0, 2 * Math.PI);
+        canvasCtx.fill();
+      });
+    }
+
+    // Show Monopoly-style toast notification
+    function showMonopolyToast(message, type) {
+      const colors = {
+        success: '#1FB25A',
+        warning: '#F7941D',
+        error: '#E2231A'
+      };
+
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 30px;
+        background: ${colors[type] || colors.success};
+        color: white;
+        border: 4px solid #000;
+        border-radius: 15px;
+        padding: 20px 30px;
+        font-size: 1.2rem;
+        font-family: 'Fredoka One', cursive;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        z-index: 10000;
+        animation: slideIn 0.5s ease;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Start button
+    startButton.addEventListener('click', async () => {
+      if (!poseLandmarker) {
+        await loadPoseModel();
+      }
+
+      await setupCamera(videoElement);
+      videoElement.style.display = 'block';
+      isActive = true;
+
+      startButton.style.display = 'none';
+      finishButton.style.display = 'block';
+      coachButton.style.display = 'block';
+
+      showMonopolyToast('🎲 Workout Started! Roll the dice!', 'success');
+      processFrame();
+    });
+
+    // Finish button
+    finishButton.addEventListener('click', () => {
+      isActive = false;
+      stopCamera();
+
+      startButton.style.display = 'block';
+      finishButton.style.display = 'none';
+
+      showMonopolyToast(`🏁 Session Complete! You earned $${totalMoney}!`, 'success');
+    });
+
+    // Exercise select
+    exerciseSelect.addEventListener('change', (e) => {
+      currentExercise = e.target.value;
+      currentExerciseEl.textContent = e.target.value === 'squat' ? 'Squat' : 'Bicep Curl';
+      repCounter.count = 0;
+      repCountEl.textContent = '0';
+    });
+
+    // Coach button
+    coachButton.addEventListener('click', () => {
+      showMonopolyToast('🎩 Mr. Monopoly says: Keep up the great work!', 'success');
+    });
+
+    // Add slideIn animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from {
+          transform: translateX(400px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
