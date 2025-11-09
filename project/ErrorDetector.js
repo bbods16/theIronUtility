@@ -54,4 +54,26 @@ export class ErrorDetector {
       errorCounts: errorCounts,
     };
   }
+
+  /**
+   * Get the most common errors from the current rep.
+   * Returns an array of error identifiers that occurred during the current rep.
+   * @returns {Array<string>} Array of error identifiers.
+   */
+  getMostCommonErrors() {
+    const errors = [];
+    for (const error in this.currentRepErrors) {
+      if (this.currentRepErrors[error]) {
+        errors.push(error);
+      }
+    }
+    return errors;
+  }
+
+  /**
+   * Reset the error detector (clears all records and current rep errors).
+   */
+  reset() {
+    this.currentRepErrors = {};
+  }
 }

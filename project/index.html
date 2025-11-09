@@ -14,6 +14,9 @@
   <!-- MediaPipe Pose Tasks (Pose Landmarker) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" crossorigin="anonymous"></script>
 
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
   <style>
     :root {
       --monopoly-red: #E2231A;
@@ -391,6 +394,26 @@
           </div>
         </div>
 
+        <!-- Live Feedback Display -->
+        <div class="stats-board">
+          <div class="railroad-header">
+            🎯 LIVE FEEDBACK 🎯
+          </div>
+          <div id="liveFeedback" style="padding: 15px; min-height: 60px; background: #f8f9fa; border: 3px solid var(--monopoly-dark); border-radius: 10px; font-size: 1.1rem; color: var(--monopoly-dark); text-align: center;">
+            Ready to start!
+          </div>
+        </div>
+
+        <!-- Feedback Log -->
+        <div class="stats-board">
+          <div class="railroad-header">
+            📋 FEEDBACK LOG 📋
+          </div>
+          <div id="feedbackLog" style="padding: 15px; max-height: 200px; overflow-y: auto; background: #f8f9fa; border: 3px solid var(--monopoly-dark); border-radius: 10px; font-size: 0.9rem;">
+            <div class="message text-primary">Workout log will appear here...</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -411,6 +434,26 @@
     </div>
   </footer>
 
+  <!-- Coaching Modal -->
+  <div class="modal fade" id="coachingModal" tabindex="-1" aria-labelledby="coachingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content" style="border: 6px solid var(--monopoly-dark); border-radius: 20px;">
+        <div class="modal-header" style="background: var(--monopoly-blue); color: white; border-bottom: 4px solid var(--monopoly-dark);">
+          <h5 class="modal-title" id="coachingModalLabel" style="font-family: 'Fredoka One', cursive; font-size: 1.5rem;">
+            🎩 Mr. Monopoly's Coaching Tips 🎩
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="coachContent" style="padding: 30px; font-family: Arial, sans-serif; font-size: 1rem; line-height: 1.6;">
+          Loading coaching feedback...
+        </div>
+        <div class="modal-footer" style="border-top: 4px solid var(--monopoly-dark);">
+          <button type="button" class="monopoly-btn monopoly-btn-green" data-bs-dismiss="modal">Got It!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script type="module">
     // Import modules
@@ -420,6 +463,7 @@
     import { RepCounter } from './RepCounter.js';
     import { ErrorDetector } from './ErrorDetector.js';
     import * as UIManager from './UIManager.js';
+    import * as api from './api.js';
 
     // Initialize pose model variables
     let poseLandmarker = null;
@@ -486,18 +530,28 @@
           const errors = checkErrors(landmarks, currentExercise);
           errorDetector.recordFrameErrors(errors);
 
+          // Update live feedback
+          if (errors.length > 0) {
+            UIManager.setLiveFeedback('⚠️ ' + errors.join(', '));
+          } else {
+            UIManager.setLiveFeedback('✓ Good form!');
+          }
+
           const repCompleted = repCounter.update(landmarks, currentExercise);
           if (repCompleted) {
             const repErrors = errorDetector.getMostCommonErrors();
+            errorDetector.endRep(repCounter.count);
             const isGoodRep = repErrors.length === 0;
 
             if (isGoodRep) {
               totalMoney += 200; // Pass GO!
               sessionScore += 100;
               showMonopolyToast('🎉 Perfect Rep! Collect $200!', 'success');
+              UIManager.appendLogMessage(`Rep ${repCounter.count}: Perfect form! +$200`, 'success');
             } else {
               totalMoney -= 50; // Pay rent!
-              showMonopolyToast('⚠️ Form errors detected!', 'warning');
+              showMonopolyToast('⚠️ Form errors: ' + repErrors.join(', '), 'warning');
+              UIManager.appendLogMessage(`Rep ${repCounter.count}: Errors - ${repErrors.join(', ')}`, 'warning');
             }
 
             // Update UI
@@ -505,7 +559,8 @@
             formScoreEl.textContent = sessionScore;
             moneyEarnedEl.textContent = totalMoney;
 
-            errorDetector.reset();
+            // Start tracking new rep
+            errorDetector.startRep();
           }
         }
       }
@@ -585,11 +640,15 @@
       videoElement.style.display = 'block';
       isActive = true;
 
+      // Initialize error tracking for first rep
+      errorDetector.startRep();
+
       startButton.style.display = 'none';
       finishButton.style.display = 'block';
       coachButton.style.display = 'block';
 
       showMonopolyToast('🎲 Workout Started! Roll the dice!', 'success');
+      UIManager.appendLogMessage('🎲 Workout started! Begin your first rep!', 'info');
       processFrame();
     });
 
@@ -613,8 +672,51 @@
     });
 
     // Coach button
-    coachButton.addEventListener('click', () => {
-      showMonopolyToast('🎩 Mr. Monopoly says: Keep up the great work!', 'success');
+    coachButton.addEventListener('click', async () => {
+      try {
+        // Disable button while loading
+        UIManager.setCoachingButtonEnabled(false);
+        showMonopolyToast('🎩 Getting coaching feedback...', 'success');
+
+        // Get workout summary
+        const summary = errorDetector.getSummary();
+        const summaryData = {
+          exercise: currentExercise,
+          totalReps: repCounter.count,
+          score: sessionScore,
+          money: totalMoney,
+          errorCounts: summary.errorCounts
+        };
+
+        // Call coaching API
+        const coachingText = await api.getCoaching(summaryData);
+
+        // Show modal with coaching feedback
+        UIManager.showCoachingModal(coachingText);
+
+      } catch (error) {
+        console.error('Coaching error:', error);
+        // Fallback to local coaching if API fails
+        const fallbackCoaching = `# 🎩 Mr. Monopoly's Coaching Tips
+
+## Overall Performance
+You've completed **${repCounter.count} reps** and earned **$${totalMoney}**!
+
+## Key Focus Areas
+${repCounter.count > 0 ? '- Keep maintaining good form throughout your sets\n- Focus on controlled movements\n- Stay consistent with your depth' : '- Start your workout to get personalized feedback!'}
+
+## Next Steps
+- Continue practicing to improve your form
+- Aim for consistency in each repetition
+- Remember: Quality over quantity!
+
+*Note: Connect to backend API for AI-powered personalized coaching.*`;
+
+        UIManager.showCoachingModal(fallbackCoaching);
+      } finally {
+        // Re-enable button
+        UIManager.setCoachingButtonEnabled(true);
+      }
     });
 
     // Add slideIn animation

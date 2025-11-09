@@ -58,7 +58,7 @@ export function appendLogMessage(message, type = "") {
  * @param {boolean} enabled - True to enable the button, false to disable.
  */
 export function setCoachingButtonEnabled(enabled) {
-  const coachBtn = document.getElementById('coachBtn');
+  const coachBtn = document.getElementById('coachButton');
   if (coachBtn) {
     coachBtn.disabled = !enabled;
   }

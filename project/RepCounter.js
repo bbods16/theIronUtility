@@ -19,7 +19,21 @@ export class RepCounter {
     }
 
     if (exercise === 'squat') {
-        // ... (squat rep counting logic)
+        // Squat detection using knee angle
+        const LEFT_HIP = 23, LEFT_KNEE = 25, LEFT_ANKLE = 27;
+        const RIGHT_HIP = 24, RIGHT_KNEE = 26, RIGHT_ANKLE = 28;
+
+        const leftKneeAngle = calculateAngle(landmarks[LEFT_HIP], landmarks[LEFT_KNEE], landmarks[LEFT_ANKLE]);
+        const rightKneeAngle = calculateAngle(landmarks[RIGHT_HIP], landmarks[RIGHT_KNEE], landmarks[RIGHT_ANKLE]);
+        const kneeAngle = Math.min(leftKneeAngle, rightKneeAngle);
+
+        if (!this.inRep && kneeAngle < 100) { // Squatting down (knees bent)
+            this.inRep = true;
+        } else if (this.inRep && kneeAngle > 140) { // Standing up (knees extended)
+            this.inRep = false;
+            this.count++;
+            return true;
+        }
     } else if (exercise === 'bicep_curl') {
         const LEFT_SHOULDER = 11, LEFT_ELBOW = 13, LEFT_WRIST = 15;
         const RIGHT_SHOULDER = 12, RIGHT_ELBOW = 14, RIGHT_WRIST = 16;
