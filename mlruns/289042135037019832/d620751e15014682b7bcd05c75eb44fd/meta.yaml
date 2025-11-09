@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/clbod/Downloads/theIronUtility/mlruns/289042135037019832/d620751e15014682b7bcd05c75eb44fd/artifacts
+end_time: 1762643116527
+entry_point_name: ''
+experiment_id: '289042135037019832'
+lifecycle_stage: active
+run_id: d620751e15014682b7bcd05c75eb44fd
+run_name: 2025-11-08_18-04-55_squat_form_train
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1762643097022
+status: 4
+tags: []
+user_id: clbod
