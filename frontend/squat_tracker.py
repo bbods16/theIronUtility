@@ -254,6 +254,7 @@ class SquatTracker:
             'stage': 'unknown',
             'form_errors': [],
             'feedback_messages': [],
+            'confidence': 0.0,  # AI confidence score
             'landmarks': None,
             'good_reps': self.good_reps,
             'total_reps': self.total_reps,
@@ -262,6 +263,20 @@ class SquatTracker:
 
         if results.pose_landmarks:
             landmarks = results.pose_landmarks.landmark
+
+            # Calculate AI confidence from landmark visibility
+            key_landmarks = [
+                self.mp_pose.PoseLandmark.LEFT_SHOULDER,
+                self.mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                self.mp_pose.PoseLandmark.LEFT_HIP,
+                self.mp_pose.PoseLandmark.RIGHT_HIP,
+                self.mp_pose.PoseLandmark.LEFT_KNEE,
+                self.mp_pose.PoseLandmark.RIGHT_KNEE,
+                self.mp_pose.PoseLandmark.LEFT_ANKLE,
+                self.mp_pose.PoseLandmark.RIGHT_ANKLE
+            ]
+            confidences = [landmarks[lm.value].visibility for lm in key_landmarks]
+            tracking_data['confidence'] = float(np.mean(confidences))
 
             # Simplified drawing for faster rendering
             self.mp_drawing.draw_landmarks(
@@ -288,6 +303,13 @@ class SquatTracker:
 
                 rep_completed = False
 
+                # REAL-TIME FORM ERROR DETECTION (NEW!)
+                # Check for form errors continuously, not just on rep completion
+                is_in_squat_position = smoothed_hip_angle <= self.hip_angle_threshold_down
+                current_errors = self.detect_form_errors(landmarks, smoothed_hip_angle, smoothed_torso_angle, is_in_squat_position)
+                tracking_data['form_errors'] = current_errors
+                tracking_data['feedback_messages'] = self.get_form_feedback(current_errors)
+
                 if smoothed_hip_angle <= self.hip_angle_threshold_down:
                     if not self.is_down:
                         self.is_down = True
@@ -300,17 +322,12 @@ class SquatTracker:
                             self.depth_reached_in_current_rep = True
                             rep_completed = True
 
-                            errors = self.detect_form_errors(landmarks, smoothed_hip_angle, smoothed_torso_angle, True)
-                            tracking_data['form_errors'] = errors
-
-                            # Generate detailed feedback messages
-                            tracking_data['feedback_messages'] = self.get_form_feedback(errors)
-
-                            for error in errors:
+                            # Count form errors for session stats (on rep completion)
+                            for error in current_errors:
                                 if error in self.form_errors:
                                     self.form_errors[error] += 1
 
-                            if not tracking_data['form_errors']:
+                            if not current_errors:
                                 self.good_reps += 1
 
                 elif smoothed_hip_angle >= self.hip_angle_threshold_up:
