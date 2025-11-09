@@ -1,0 +1,1 @@
+[{'name': 'skin_tone', 'attribute': 'subject_metadata.skin_tone'}, {'name': 'body_type', 'attribute': 'subject_metadata.body_type'}, {'name': 'lighting_condition', 'attribute': 'video_metadata.lighting'}, {'name': 'clothing_type', 'attribute': 'video
