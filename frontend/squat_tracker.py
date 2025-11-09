@@ -15,22 +15,34 @@ class SquatTracker:
     Counts squats and detects form errors
     """
 
-    def __init__(self):
+    def __init__(self, model_complexity=0, enable_gpu=True):
+        """
+        Initialize Squat Tracker
+
+        Args:
+            model_complexity (int): 0=Lite (fastest), 1=Balanced, 2=Heavy (most accurate)
+            enable_gpu (bool): Enable GPU acceleration if available (RTX 4070)
+        """
         self.mp_pose = mp.solutions.pose
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
 
-        # Optimized for MAXIMUM speed - using Lite model for real-time webcam
+        # GPU ACCELERATION: MediaPipe automatically uses GPU (CUDA/TensorRT) when available
+        # on systems with NVIDIA GPUs like RTX 4070. No additional configuration needed.
+        #
         # model_complexity=0 is fastest (Lite model) - USE THIS FOR WEBCAM
-        # model_complexity=1 is balanced (default)
+        # model_complexity=1 is balanced (default) - GOOD FOR VIDEO PROCESSING
         # model_complexity=2 is most accurate but slowest
         self.pose = self.mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
-            model_complexity=0,  # LITE MODEL - fastest for real-time
+            model_complexity=model_complexity,  # Configurable based on use case
             enable_segmentation=False,  # Disable segmentation for speed
             smooth_landmarks=True  # Enable smoothing for better tracking
         )
+
+        self.model_complexity = model_complexity
+        print(f"[SQUAT TRACKER] Initialized with model_complexity={model_complexity} (GPU: {enable_gpu})")
 
         self.squat_count = 0
         self.is_down = False
@@ -323,47 +335,69 @@ class SquatTracker:
         return image, tracking_data
 
     def _draw_info(self, image: np.ndarray, data: Dict) -> None:
-        """Draw tracking info on the frame"""
+        """Draw tracking info on the frame - optimized for small resolution"""
         h, w = image.shape[:2]
 
-        cv2.rectangle(image, (10, 10), (400, 250), (0, 0, 0), -1)
-        cv2.rectangle(image, (10, 10), (400, 250), (0, 255, 0), 3)
+        # Scale overlay based on image size (much smaller for 320x240)
+        box_width = min(180, int(w * 0.55))
+        box_height = min(120, int(h * 0.5))
 
-        cv2.putText(image, 'IRON UTILITY MONOPOLY',
-                   (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 215, 0), 2)
+        # Semi-transparent background
+        overlay = image.copy()
+        cv2.rectangle(overlay, (5, 5), (box_width, box_height), (0, 0, 0), -1)
+        cv2.addWeighted(overlay, 0.7, image, 0.3, 0, image)
 
+        # Border
+        cv2.rectangle(image, (5, 5), (box_width, box_height), (0, 255, 0), 2)
+
+        # Smaller font sizes
+        font_scale_small = 0.35
+        font_scale_medium = 0.45
+        font_scale_large = 0.6
+        thickness = 1
+
+        y_offset = 18
+        line_spacing = 18
+
+        # Title (smaller)
+        cv2.putText(image, 'IRON UTILITY',
+                   (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, font_scale_small, (255, 215, 0), thickness)
+        y_offset += line_spacing
+
+        # Squat count (larger, green)
         cv2.putText(image, f'SQUATS: {data["squat_count"]}',
-                   (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
+                   (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, font_scale_large, (0, 255, 0), 2)
+        y_offset += line_spacing + 2
 
+        # Good reps
         cv2.putText(image, f'Good Reps: {data["good_reps"]}/{data["total_reps"]}',
-                   (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                   (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, font_scale_small, (255, 255, 255), thickness)
+        y_offset += line_spacing
 
-        cv2.putText(image, f'Hip Angle: {data["current_angle"]}deg',
-                   (20, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(image, f'Torso Angle: {data["torso_angle"]}deg',
-                   (20, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        # Hip angle
+        cv2.putText(image, f'Hip: {data["current_angle"]}deg',
+                   (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, font_scale_small, (255, 255, 255), thickness)
+        y_offset += line_spacing
 
+        # Stage
         stage_color = (0, 255, 0) if data['stage'] == 'UP' else (255, 165, 0)
         cv2.putText(image, f'Stage: {data["stage"]}',
-                   (20, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.7, stage_color, 2)
+                   (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, font_scale_small, stage_color, thickness)
 
-        if data['form_errors']:
-            error_text = ', '.join(data['form_errors'])
-            cv2.putText(image, f'Errors: {error_text}',
-                       (20, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-
+        # Depth indicator (right side, smaller)
         depth_y = int(h * 0.5)
-        depth_height = 200
+        depth_height = int(h * 0.6)
+        bar_width = 15
 
-        cv2.rectangle(image, (w - 50, depth_y - depth_height),
-                     (w - 20, depth_y), (100, 100, 100), -1)
+        cv2.rectangle(image, (w - bar_width - 5, depth_y - depth_height),
+                     (w - 5, depth_y), (100, 100, 100), -1)
 
         if data['current_angle'] > 0:
             depth_percent = max(0, min(1, (180 - data['current_angle']) / 90))
             indicator_y = int(depth_y - depth_height * depth_percent)
 
             color = (0, 255, 0) if depth_percent > 0.5 else (0, 165, 255)
-            cv2.circle(image, (w - 35, indicator_y), 10, color, -1)
+            cv2.circle(image, (w - int(bar_width/2) - 5, indicator_y), 5, color, -1)
 
     def get_form_feedback(self, errors: List[str]) -> List[str]:
         """

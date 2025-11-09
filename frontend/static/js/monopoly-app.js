@@ -350,51 +350,76 @@ class MonopolySquatAnalyzer {
             position: fixed;
             top: 120px;
             left: 30px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 5px solid var(--monopoly-green);
-            border-radius: 20px;
-            padding: 25px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 6px solid var(--monopoly-green);
+            border-radius: 25px;
+            padding: 30px;
             z-index: 9000;
             color: white;
             font-family: 'Fredoka One', cursive;
-            min-width: 300px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            min-width: 350px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
         `;
 
         overlay.innerHTML = `
-            <h2 style="margin: 0 0 20px 0; color: var(--monopoly-gold); text-shadow: 2px 2px 4px #000;">
+            <h2 style="margin: 0 0 25px 0; color: var(--monopoly-gold); text-shadow: 3px 3px 6px #000; font-size: 1.8rem;">
                 🎩 LIVE SQUAT TRACKER 🎩
             </h2>
-            <div style="font-size: 48px; text-align: center; margin: 20px 0; color: var(--monopoly-green); text-shadow: 3px 3px 6px #000;">
+
+            <!-- AI CONFIDENCE INDICATOR (NEW!) -->
+            <div style="margin-bottom: 25px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 15px; border: 3px solid var(--monopoly-blue);">
+                <div style="font-size: 16px; margin-bottom: 10px; color: var(--monopoly-yellow); text-align: center;">
+                    🤖 AI CONFIDENCE
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="flex: 1; height: 30px; background: rgba(255,255,255,0.2); border-radius: 15px; overflow: hidden; border: 2px solid white;">
+                        <div id="confidenceBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #1FB25A, #FFD700); transition: width 0.3s ease, background 0.3s ease;"></div>
+                    </div>
+                    <div id="confidenceValue" style="font-size: 26px; font-weight: bold; color: var(--monopoly-green); min-width: 65px; text-align: right; text-shadow: 2px 2px 4px #000;">
+                        0%
+                    </div>
+                </div>
+                <div id="confidenceStatus" style="text-align: center; margin-top: 8px; font-size: 14px; color: #FFD700;">
+                    Initializing...
+                </div>
+            </div>
+
+            <!-- REP COUNTER - BIGGER FOR PROJECTOR -->
+            <div style="font-size: 72px; text-align: center; margin: 25px 0; color: var(--monopoly-green); text-shadow: 4px 4px 8px #000; font-weight: bold;">
                 <span id="liveSquatCount">0</span>
             </div>
-            <div style="font-size: 18px; margin: 10px 0;">
-                Stage: <span id="liveStage" style="color: var(--monopoly-yellow);">READY</span>
+
+            <div style="font-size: 22px; margin: 12px 0;">
+                Stage: <span id="liveStage" style="color: var(--monopoly-yellow); font-size: 24px; font-weight: bold;">READY</span>
             </div>
-            <div style="font-size: 18px; margin: 10px 0;">
-                Angle: <span id="liveAngle" style="color: var(--monopoly-blue);">0°</span>
+            <div style="font-size: 22px; margin: 12px 0;">
+                Angle: <span id="liveAngle" style="color: var(--monopoly-blue); font-size: 24px; font-weight: bold;">0°</span>
             </div>
-            <div style="font-size: 18px; margin: 10px 0;">
-                Good Reps: <span id="liveGoodReps" style="color: var(--monopoly-green);">0</span> / <span id="liveTotalReps">0</span>
+            <div style="font-size: 22px; margin: 12px 0;">
+                Good Reps: <span id="liveGoodReps" style="color: var(--monopoly-green); font-size: 24px; font-weight: bold;">0</span> / <span id="liveTotalReps" style="font-size: 24px; font-weight: bold;">0</span>
             </div>
-            <div style="font-size: 14px; margin: 10px 0; color: #888;">
-                Processing: <span id="liveProcessingTime" style="color: var(--monopoly-blue);">0ms</span>
+            <div style="font-size: 16px; margin: 12px 0; color: #aaa;">
+                Processing: <span id="liveProcessingTime" style="color: var(--monopoly-blue); font-weight: bold;">0ms</span>
             </div>
-            <div id="liveFormErrors" style="margin-top: 15px; padding: 10px; background: rgba(226,35,26,0.2); border-radius: 10px; min-height: 40px;">
-                <strong style="color: var(--monopoly-red);">Form Errors:</strong>
-                <div id="errorList" style="margin-top: 8px; font-size: 14px;">None</div>
+
+            <!-- FORM ERRORS - BIGGER TEXT FOR PROJECTOR -->
+            <div id="liveFormErrors" style="margin-top: 20px; padding: 15px; background: rgba(226,35,26,0.2); border-radius: 15px; min-height: 50px; border: 3px solid var(--monopoly-red);">
+                <strong style="color: var(--monopoly-red); font-size: 18px;">⚠️ Form Errors:</strong>
+                <div id="errorList" style="margin-top: 10px; font-size: 18px; line-height: 1.6; font-weight: bold;">None</div>
             </div>
-            <div style="margin-top: 20px; text-align: center;">
+
+            <div style="margin-top: 25px; text-align: center;">
                 <button id="resetTrackerBtn" style="
                     background: var(--monopoly-red);
                     color: white;
-                    border: 3px solid white;
-                    border-radius: 10px;
-                    padding: 10px 20px;
+                    border: 4px solid white;
+                    border-radius: 12px;
+                    padding: 12px 24px;
                     font-family: 'Fredoka One', cursive;
-                    font-size: 16px;
+                    font-size: 18px;
                     cursor: pointer;
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+                    transition: all 0.3s;
                 ">
                     🔄 RESET
                 </button>
@@ -403,13 +428,63 @@ class MonopolySquatAnalyzer {
 
         document.body.appendChild(overlay);
 
-        // Add reset button handler
-        document.getElementById('resetTrackerBtn').addEventListener('click', () => this.resetTracker());
+        // Add reset button handler with hover effect
+        const resetBtn = document.getElementById('resetTrackerBtn');
+        resetBtn.addEventListener('click', () => this.resetTracker());
+        resetBtn.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = '0 8px 16px rgba(0,0,0,0.5)';
+        });
+        resetBtn.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 6px 12px rgba(0,0,0,0.4)';
+        });
     }
 
     updateRealtimeDisplay(data) {
         // Update squat count
         document.getElementById('liveSquatCount').textContent = data.squat_count;
+
+        // Update AI CONFIDENCE INDICATOR (NEW!)
+        if (data.confidence !== undefined) {
+            const confidencePercent = Math.round(data.confidence * 100);
+            const confidenceBar = document.getElementById('confidenceBar');
+            const confidenceValue = document.getElementById('confidenceValue');
+            const confidenceStatus = document.getElementById('confidenceStatus');
+
+            // Update bar width
+            confidenceBar.style.width = confidencePercent + '%';
+
+            // Update value
+            confidenceValue.textContent = confidencePercent + '%';
+
+            // Color coding based on confidence level
+            if (confidencePercent >= 90) {
+                // Excellent confidence (90-100%)
+                confidenceBar.style.background = 'linear-gradient(90deg, #1FB25A, #28E070)';
+                confidenceValue.style.color = '#1FB25A';
+                confidenceStatus.textContent = '✓ Excellent Tracking';
+                confidenceStatus.style.color = '#1FB25A';
+            } else if (confidencePercent >= 75) {
+                // Good confidence (75-89%)
+                confidenceBar.style.background = 'linear-gradient(90deg, #FFD700, #FEF200)';
+                confidenceValue.style.color = '#FFD700';
+                confidenceStatus.textContent = '✓ Good Tracking';
+                confidenceStatus.style.color = '#FFD700';
+            } else if (confidencePercent >= 60) {
+                // Fair confidence (60-74%)
+                confidenceBar.style.background = 'linear-gradient(90deg, #F7941D, #FFB84D)';
+                confidenceValue.style.color = '#F7941D';
+                confidenceStatus.textContent = '⚠ Fair - Adjust Position';
+                confidenceStatus.style.color = '#F7941D';
+            } else {
+                // Low confidence (<60%)
+                confidenceBar.style.background = 'linear-gradient(90deg, #E2231A, #FF4444)';
+                confidenceValue.style.color = '#E2231A';
+                confidenceStatus.textContent = '⚠ Low - Check Camera';
+                confidenceStatus.style.color = '#E2231A';
+            }
+        }
 
         // Update stage
         const stageElement = document.getElementById('liveStage');
@@ -439,19 +514,19 @@ class MonopolySquatAnalyzer {
             }
         }
 
-        // Update form errors with detailed feedback
+        // Update form errors with detailed feedback - BIGGER TEXT FOR PROJECTOR
         const errorList = document.getElementById('errorList');
         if (data.feedback_messages && data.feedback_messages.length > 0) {
             errorList.innerHTML = data.feedback_messages.map(message =>
-                `<div style="color: #FFF; margin: 5px 0; font-size: 13px; line-height: 1.4;">${message}</div>`
+                `<div style="color: #FFF; margin: 8px 0; font-size: 18px; line-height: 1.6; font-weight: bold;">${message}</div>`
             ).join('');
         } else if (data.form_errors && data.form_errors.length > 0) {
             // Fallback to basic error display if no feedback messages
             errorList.innerHTML = data.form_errors.map(error =>
-                `<div style="color: #FFF; margin: 5px 0;">⚠️ ${error.replace(/_/g, ' ')}</div>`
+                `<div style="color: #FFF; margin: 8px 0; font-size: 18px; font-weight: bold;">⚠️ ${error.replace(/_/g, ' ').toUpperCase()}</div>`
             ).join('');
         } else {
-            errorList.innerHTML = '<div style="color: var(--monopoly-green);">✓ Perfect Form!</div>';
+            errorList.innerHTML = '<div style="color: var(--monopoly-green); font-size: 20px; font-weight: bold;">✓ PERFECT FORM!</div>';
         }
 
         // Display annotated frame with skeleton overlay
